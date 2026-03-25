@@ -5,6 +5,7 @@ import { Project, Milestone, Phase, WBSTask, Subtask } from '../types';
 import { useProjects } from '../context/ProjectContext';
 import { ProjectModal } from './ProjectModal';
 import { TaskModal } from './TaskModal';
+import { ProjectTasksTableView } from './ProjectTasksTableView';
 
 interface ProjectDetailModalProps {
   project: Project;
@@ -712,116 +713,6 @@ function TasksKanbanTab({ project, onCreateTask }: { project: Project; onCreateT
   const allTasks =
     project.phases?.flatMap((phase) => phase.milestones.flatMap((m) => m.tasks)) || [];
 
-  const tasksByStatus = {
-    todo: allTasks.filter((t) => t.status === 'todo'),
-    doing: allTasks.filter((t) => t.status === 'doing'),
-    done: allTasks.filter((t) => t.status === 'done'),
-  };
-
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Tarefas do Projeto</h3>
-        <button
-          onClick={onCreateTask}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Tarefa
-        </button>
-      </div>
-
-      <div className="flex gap-4 overflow-x-auto">
-        {/* To Do Column */}
-        <div className="flex-shrink-0 w-80">
-          <div className="bg-gray-100 rounded-lg px-3 py-2 mb-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-gray-900">A Fazer</span>
-              <span className="bg-white px-2 py-0.5 rounded text-sm">
-                {tasksByStatus.todo.length}
-              </span>
-            </div>
-          </div>
-          <div className="space-y-2 min-h-[300px]">
-            {tasksByStatus.todo.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-            {tasksByStatus.todo.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-8">Nenhuma tarefa</p>
-            )}
-          </div>
-        </div>
-
-        {/* Doing Column */}
-        <div className="flex-shrink-0 w-80">
-          <div className="bg-blue-100 rounded-lg px-3 py-2 mb-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-blue-900">Em Progresso</span>
-              <span className="bg-white px-2 py-0.5 rounded text-sm">
-                {tasksByStatus.doing.length}
-              </span>
-            </div>
-          </div>
-          <div className="space-y-2 min-h-[300px]">
-            {tasksByStatus.doing.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-            {tasksByStatus.doing.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-8">Nenhuma tarefa</p>
-            )}
-          </div>
-        </div>
-
-        {/* Done Column */}
-        <div className="flex-shrink-0 w-80">
-          <div className="bg-green-100 rounded-lg px-3 py-2 mb-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-green-900">Concluído</span>
-              <span className="bg-white px-2 py-0.5 rounded text-sm">
-                {tasksByStatus.done.length}
-              </span>
-            </div>
-          </div>
-          <div className="space-y-2 min-h-[300px]">
-            {tasksByStatus.done.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-            {tasksByStatus.done.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-8">Nenhuma tarefa</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <ProjectTasksTableView tasks={allTasks} onCreateTask={onCreateTask} />;
 }
 
-function TaskCard({ task }: { task: any }) {
-  const priorityColors: Record<string, string> = {
-    low: 'border-l-4 border-l-gray-400',
-    medium: 'border-l-4 border-l-yellow-400',
-    high: 'border-l-4 border-l-red-400',
-  };
-
-  return (
-    <div
-      className={`bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow ${
-        priorityColors[task.priority || 'medium']
-      }`}
-    >
-      <h5 className="font-medium text-gray-900 text-sm mb-2">{task.title}</h5>
-      {task.description && (
-        <p className="text-xs text-gray-600 mb-2 line-clamp-2">{task.description}</p>
-      )}
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        {task.assignee && <span>{task.assignee}</span>}
-        {task.dueDate && (
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {new Date(task.dueDate).toLocaleDateString('pt-BR')}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
