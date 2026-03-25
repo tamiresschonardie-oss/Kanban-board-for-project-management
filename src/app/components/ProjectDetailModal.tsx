@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { X, Calendar, TrendingUp, Users, Clock, Target, FileText, Activity, Edit2, Plus, Trash2, Save, Pause, ChevronRight, ChevronDown } from 'lucide-react';
+import { X, Calendar, TrendingUp, Users, Clock, Target, FileText, Activity, Edit2, Plus, Trash2, Save, Pause, ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs';
 import { Project, Milestone, Phase, WBSTask, Subtask } from '../types';
 import { useProjects } from '../context/ProjectContext';
 import { ProjectModal } from './ProjectModal';
 import { TaskModal } from './TaskModal';
 import { ProjectTasksTableView } from './ProjectTasksTableView';
+import { ProjectPhasesTab } from './ProjectPhasesTab';
 
 interface ProjectDetailModalProps {
   project: Project;
@@ -134,6 +135,13 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
                 Visão Geral
               </TabsTrigger>
               <TabsTrigger
+                value="structure"
+                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900"
+              >
+                <Layers className="w-4 h-4" />
+                Estrutura
+              </TabsTrigger>
+              <TabsTrigger
                 value="milestones"
                 className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900"
               >
@@ -158,6 +166,10 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
 
             <TabsContent value="overview">
               <OverviewTab project={project} />
+            </TabsContent>
+
+            <TabsContent value="structure">
+              <ProjectPhasesTab project={project} />
             </TabsContent>
 
             <TabsContent value="milestones">
