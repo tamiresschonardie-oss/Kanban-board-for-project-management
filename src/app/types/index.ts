@@ -152,6 +152,16 @@ export interface Phase {
   milestones: Milestone[];
 }
 
+export interface EAP {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  phases: Phase[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ActivityLog {
   id: string;
   timestamp: string;
