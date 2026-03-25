@@ -1,5 +1,7 @@
 import { Clock, Layers, Check, Pause } from 'lucide-react';
 import { Project } from '../types';
+import { useTasks } from '../context/TaskContext';
+import { getProjectProgress } from '../utils/progressCalculator';
 
 interface ProjectCardProps {
   project: Project;
@@ -9,6 +11,8 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onClick, isDragging }: ProjectCardProps) {
   const isPaused = project.isPaused;
+  const { allTasks } = useTasks();
+  const calculatedProgress = getProjectProgress(project, allTasks);
   
   return (
     <div
@@ -83,7 +87,7 @@ export function ProjectCard({ project, onClick, isDragging }: ProjectCardProps) 
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-600 rounded-full transition-all"
-              style={{ width: `${project.progress}%` }}
+              style={{ width: `${calculatedProgress}%` }}
             />
           </div>
         </div>
@@ -94,7 +98,7 @@ export function ProjectCard({ project, onClick, isDragging }: ProjectCardProps) 
             <Layers className="w-4 h-4" />
             <span>{project.tasksCompleted}/{project.tasksTotal}</span>
           </div>
-          <span className="font-semibold text-gray-900">{project.progress}%</span>
+          <span className="font-semibold text-gray-900">{calculatedProgress}%</span>
         </div>
 
         {/* Tags and Deadline */}

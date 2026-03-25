@@ -5,6 +5,7 @@ import { MilestoneCard } from './MilestoneCard';
 interface PhaseCardProps {
   phase: Phase;
   tasks: WBSTask[];
+  phaseProgress?: number;
   isExpanded: boolean;
   onToggle: () => void;
   expandedMilestones: Set<string>;
@@ -15,6 +16,7 @@ interface PhaseCardProps {
 export function PhaseCard({
   phase,
   tasks,
+  phaseProgress = 0,
   isExpanded,
   onToggle,
   expandedMilestones,
@@ -38,13 +40,24 @@ export function PhaseCard({
         </div>
         
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900">{phase.name}</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold text-gray-900">{phase.name}</h3>
+            <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{phaseProgress}%</span>
+          </div>
           {phase.description && (
             <p className="text-sm text-gray-600 mt-1">{phase.description}</p>
           )}
-          <p className="text-xs text-gray-500 mt-2">
-            {phase.milestones.length} marco{phase.milestones.length !== 1 ? 's' : ''}
-          </p>
+          <div className="mt-2 space-y-1">
+            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all"
+                style={{ width: `${phaseProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              {phase.milestones.length} marco{phase.milestones.length !== 1 ? 's' : ''}
+            </p>
+          </div>
         </div>
       </button>
 

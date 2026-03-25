@@ -5,8 +5,6 @@ import { useProjects } from '../context/ProjectContext';
 import { useTasks } from '../context/TaskContext';
 import { WBSTask, DemandType, Subtask } from '../types';
 
-const Comment = undefined; // Fix for unused import warning if needed
-
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;

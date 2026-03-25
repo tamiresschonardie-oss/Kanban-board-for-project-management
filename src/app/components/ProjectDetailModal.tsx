@@ -3,6 +3,8 @@ import { X, Calendar, TrendingUp, Users, Clock, Target, FileText, Activity, Edit
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs';
 import { Project, Milestone, Phase, WBSTask, Subtask } from '../types';
 import { useProjects } from '../context/ProjectContext';
+import { useTasks } from '../context/TaskContext';
+import { getProjectProgress } from '../utils/progressCalculator';
 import { ProjectModal } from './ProjectModal';
 import { TaskModal } from './TaskModal';
 import { ProjectTasksTableView } from './ProjectTasksTableView';
@@ -16,11 +18,15 @@ interface ProjectDetailModalProps {
 
 export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailModalProps) {
   const { updateProject } = useProjects();
+  const { allTasks } = useTasks();
   const [isEditingProject, setIsEditingProject] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
 
   if (!isOpen) return null;
+
+  // Calculate project progress
+  const calculatedProgress = getProjectProgress(project, allTasks);
 
   // Get all milestones from all phases
   const allMilestones: Milestone[] = project.phases?.flatMap((phase) => phase.milestones) || [];
@@ -107,7 +113,7 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
           <div className="grid grid-cols-4 gap-4 p-6 border-b">
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Progresso</p>
-              <p className="text-2xl font-bold text-gray-900">{project.progress}%</p>
+              <p className="text-2xl font-bold text-gray-900">{calculatedProgress}%</p>
             </div>
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Marcos</p>

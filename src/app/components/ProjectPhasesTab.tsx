@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { Project } from '../types';
 import { useEAP } from '../context/EAPContext';
 import { useTasks } from '../context/TaskContext';
+import { getPhaseProgress } from '../utils/progressCalculator';
 import { PhaseCard } from './PhaseCard';
 
 interface ProjectPhasesTabProps {
@@ -12,7 +13,7 @@ interface ProjectPhasesTabProps {
 
 export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps) {
   const { getEAPTemplate } = useEAP();
-  const { getTasksForProject } = useTasks();
+  const { getTasksForProject, allTasks } = useTasks();
   
   const eapName = useMemo(() => {
     if (!project.eapId) return null;
@@ -80,11 +81,13 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
           const phaseTasks = getTasksForProject(project.id).filter(
             task => task.phaseId === phase.id
           );
+          const phaseProgress = getPhaseProgress(phase.id, allTasks);
           return (
             <PhaseCard
               key={phase.id}
               phase={phase}
               tasks={phaseTasks}
+              phaseProgress={phaseProgress}
               isExpanded={expandedPhases.has(phase.id)}
               onToggle={() => togglePhase(phase.id)}
               expandedMilestones={expandedMilestones}
