@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Project } from '../types';
 import { useEAP } from '../context/EAPContext';
+import { useTasks } from '../context/TaskContext';
 import { PhaseCard } from './PhaseCard';
 
 interface ProjectPhasesTabProps {
@@ -11,6 +12,7 @@ interface ProjectPhasesTabProps {
 
 export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps) {
   const { getEAPTemplate } = useEAP();
+  const { getTasksForProject } = useTasks();
   
   const eapName = useMemo(() => {
     if (!project.eapId) return null;
@@ -74,17 +76,23 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
       )}
 
       <div className="space-y-3">
-        {project.phases.map((phase) => (
-          <PhaseCard
-            key={phase.id}
-            phase={phase}
-            isExpanded={expandedPhases.has(phase.id)}
-            onToggle={() => togglePhase(phase.id)}
-            expandedMilestones={expandedMilestones}
-            onToggleMilestone={toggleMilestone}
-            onEditTask={onEditTask}
-          />
-        ))}
+        {project.phases.map((phase) => {
+          const phaseTasks = getTasksForProject(project.id).filter(
+            task => task.phaseId === phase.id
+          );
+          return (
+            <PhaseCard
+              key={phase.id}
+              phase={phase}
+              tasks={phaseTasks}
+              isExpanded={expandedPhases.has(phase.id)}
+              onToggle={() => togglePhase(phase.id)}
+              expandedMilestones={expandedMilestones}
+              onToggleMilestone={toggleMilestone}
+              onEditTask={onEditTask}
+            />
+          );
+        })}
       </div>
     </div>
   );

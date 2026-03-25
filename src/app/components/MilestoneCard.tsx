@@ -5,11 +5,11 @@ import { TaskCard } from './TaskCard';
 
 interface MilestoneCardProps {
   milestone: Milestone;
+  tasks?: any[];
   isExpanded?: boolean;
   onToggle?: () => void;
   showTasks?: boolean;
   onEditTask?: (task: any) => void;
-  phaseId?: string;
 }
 
 const getMilestoneTypeLabel = (type: string): string => {
@@ -52,10 +52,7 @@ const getMilestoneStatusColor = (status: string): string => {
   return colors[status] || 'bg-gray-100 text-gray-700';
 };
 
-export function MilestoneCard({ milestone, isExpanded = false, onToggle, showTasks = false, onEditTask, phaseId }: MilestoneCardProps) {
-  const tasksForThisMilestone = milestone.tasks.filter(
-    task => !phaseId || task.phaseId === phaseId || (task.phaseId === undefined)
-  );
+export function MilestoneCard({ milestone, tasks = [], isExpanded = false, onToggle, showTasks = false, onEditTask }: MilestoneCardProps) {
   return (
     <div className="bg-white border border-gray-200 rounded overflow-hidden">
       <button
@@ -88,17 +85,17 @@ export function MilestoneCard({ milestone, isExpanded = false, onToggle, showTas
               <span>SLA: {milestone.sla} dias</span>
             )}
           </div>
-          {showTasks && milestone.tasks.length > 0 && (
+          {showTasks && tasks.length > 0 && (
             <p className="text-xs text-gray-500 mt-2">
-              {milestone.tasks.length} tarefa{milestone.tasks.length !== 1 ? 's' : ''}
+              {tasks.length} tarefa{tasks.length !== 1 ? 's' : ''}
             </p>
           )}
         </div>
       </button>
 
-      {showTasks && isExpanded && tasksForThisMilestone.length > 0 && (
+      {showTasks && isExpanded && tasks.length > 0 && (
         <div className="bg-gray-50 border-t border-gray-200 p-3 space-y-2">
-          {tasksForThisMilestone.map((task) => (
+          {tasks.map((task) => (
             <TaskCard key={task.id} task={task} onEdit={onEditTask} />
           ))}
         </div>

@@ -13,6 +13,7 @@ interface TaskContextType {
   startTimeTracking: (taskId: string) => void;
   stopTimeTracking: (taskId: string) => void;
   getTaskById: (taskId: string) => EnrichedTask | undefined;
+  getTasksForProject: (projectId: string) => WBSTask[];
 }
 
 export interface EnrichedTask extends WBSTask {
@@ -246,6 +247,24 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return allTasks.find(t => t.id === taskId);
   };
 
+  const getTasksForProject = (projectId: string): WBSTask[] => {
+    const projectTasks: WBSTask[] = [];
+    
+    // Get tasks from project phases
+    const project = projects.find(p => p.id === projectId);
+    if (project && project.phases) {
+      project.phases.forEach(phase => {
+        phase.milestones.forEach(milestone => {
+          milestone.tasks.forEach(task => {
+            projectTasks.push(task);
+          });
+        });
+      });
+    }
+    
+    return projectTasks;
+  };
+
   return (
     <TaskContext.Provider
       value={{
@@ -259,6 +278,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         startTimeTracking,
         stopTimeTracking,
         getTaskById,
+        getTasksForProject,
       }}
     >
       {children}
