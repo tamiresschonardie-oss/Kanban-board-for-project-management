@@ -16,7 +16,7 @@ interface TaskModalProps {
 export function TaskModal({ isOpen, onClose, projectId, milestoneId, editingTask }: TaskModalProps) {
   const { clients, products, users, stakeholders } = useAdmin();
   const { projects, updateProject } = useProjects();
-  const { addIndependentTask } = useTasks();
+  const { addIndependentTask, updateTask } = useTasks();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -70,7 +70,6 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId, editingTask
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const { updateTask } = useTasks();
 
     const taskId = editingTask?.id || `task-${Date.now()}`;
     const currentStatus = editingTask?.status || 'todo';
