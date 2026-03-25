@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs';
-import { Users, UsersIcon, Building2, UserCircle, Package, Server, FolderKanban, Settings, Tag } from 'lucide-react';
+import { Users, UsersIcon, Building2, UserCircle, Package, Server, FolderKanban, Settings, Tag, GitBranch } from 'lucide-react';
 import { UsersCRUD } from '../components/admin/UsersCRUD';
 import { TeamsCRUD } from '../components/admin/TeamsCRUD';
 import { ClientsCRUD } from '../components/admin/ClientsCRUD';
@@ -8,6 +8,7 @@ import { ProductsCRUD } from '../components/admin/ProductsCRUD';
 import { SystemsCRUD } from '../components/admin/SystemsCRUD';
 import { ProjectTypesCRUD } from '../components/admin/ProjectTypesCRUD';
 import { DemandTypesCRUD } from '../components/admin/DemandTypesCRUD';
+import { EAPTemplatesCRUD } from '../components/admin/EAPTemplatesCRUD';
 
 export function Admin() {
   return (
@@ -86,6 +87,13 @@ export function Admin() {
                 <Tag className="w-4 h-4" />
                 Tipos de Demanda
               </TabsTrigger>
+              <TabsTrigger
+                value="eap-templates"
+                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900"
+              >
+                <GitBranch className="w-4 h-4" />
+                Templates EAP
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -120,6 +128,10 @@ export function Admin() {
 
             <TabsContent value="demand-types">
               <DemandTypesCRUD />
+            </TabsContent>
+
+            <TabsContent value="eap-templates">
+              <EAPTemplatesCRUD />
             </TabsContent>
           </div>
         </Tabs>
