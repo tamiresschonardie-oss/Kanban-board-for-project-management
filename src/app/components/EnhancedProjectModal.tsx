@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { X, Calendar, Users, Building2, Package, Server, FolderKanban, Image as ImageIcon, Upload } from 'lucide-react';
 import { useProjects } from '../context/ProjectContext';
+import { useEAP } from '../context/EAPContext';
 import { useAdmin } from '../context/AdminContext';
-import { Project, DemandType } from '../types';
+import { Project, DemandType, Phase } from '../types';
 
 interface EnhancedProjectModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface EnhancedProjectModalProps {
 
 export function EnhancedProjectModal({ isOpen, onClose }: EnhancedProjectModalProps) {
   const { addProject } = useProjects();
+  const { eapTemplates } = useEAP();
   const { teams, clients, users, products, systems, projectTypes, stakeholders } = useAdmin();
   
   const [formData, setFormData] = useState({
@@ -30,12 +32,55 @@ export function EnhancedProjectModal({ isOpen, onClose }: EnhancedProjectModalPr
     budget: '',
     coverImage: '',
     selectedStakeholders: [] as string[],
+    eapStructureId: '',
   });
+
+  /**
+   * Clona template EAP para projeto, preservando ordem de fases e marcos
+   * Gera IDs únicos para cada fase e marco (não reutiliza IDs do template)
+   */
+  const cloneEAPTemplate = (templateId: string): Phase[] => {
+    const template = eapTemplates.find(t => t.id === templateId);
+    if (!template) return [];
+
+    const timestamp = Date.now();
+    return template.phases
+      .sort((a, b) => a.order - b.order)
+      .map((phase, phaseIdx) => ({
+        ...phase,
+        id: `phase-${timestamp}-${phaseIdx}`,
+        milestones: phase.milestones
+          .sort((a, b) => a.order - b.order)
+          .map((milestone, milestoneIdx) => ({
+            ...milestone,
+            id: `milestone-${timestamp}-${milestoneIdx}`,
+          })),
+      }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const selectedProjectType = projectTypes.find(pt => pt.id === formData.projectType);
+    
+    // Determina as phases: EAP selecionada OU do tipo de projeto OU vazio
+    let phases: Phase[] = [];
+    let eapId: string | undefined = undefined;
+    
+    if (formData.eapStructureId) {
+      // Se selecionou EAP, clona o template
+      phases = cloneEAPTemplate(formData.eapStructureId);
+      eapId = formData.eapStructureId;
+    } else if (selectedProjectType?.defaultWBSTemplate) {
+      // Se não selecionou EAP, usa default do tipo de projeto (compatibilidade)
+      const timestamp = Date.now();
+      phases = selectedProjectType.defaultWBSTemplate.map((phase, idx) => ({
+        ...phase,
+        id: `${timestamp}-phase-${idx}`,
+        milestones: [],
+      }));
+    }
+    // Se nenhuma EAP e nenhum tipo com template, phases fica vazio []
     
     const newProject: Project = {
       id: Date.now().toString(),
@@ -62,20 +107,19 @@ export function EnhancedProjectModal({ isOpen, onClose }: EnhancedProjectModalPr
       year: parseInt(formData.year),
       product: formData.product || undefined,
       stakeholders: formData.selectedStakeholders,
-      phases: selectedProjectType?.defaultWBSTemplate ? 
-        // Deep clone and create unique IDs for phases
-        selectedProjectType.defaultWBSTemplate.map((phase, idx) => ({
-          ...phase,
-          id: `${Date.now()}-phase-${idx}`,
-          milestones: [],
-        })) : [],
+      eapId,
+      phases,
       activities: [
         {
           id: Date.now().toString(),
           timestamp: new Date().toISOString(),
           user: formData.responsible,
           action: 'Projeto criado',
-          details: `Projeto criado com tipo "${selectedProjectType?.name || 'Padrão'}"`,
+          details: `Projeto criado com estrutura "${
+            formData.eapStructureId 
+              ? eapTemplates.find(t => t.id === formData.eapStructureId)?.name || 'Padrão'
+              : selectedProjectType?.name || 'Vazio'
+          }"`,
         },
       ],
     };
@@ -101,6 +145,7 @@ export function EnhancedProjectModal({ isOpen, onClose }: EnhancedProjectModalPr
       budget: '',
       coverImage: '',
       selectedStakeholders: [],
+      eapStructureId: '',
     });
   };
 
@@ -228,6 +273,29 @@ export function EnhancedProjectModal({ isOpen, onClose }: EnhancedProjectModalPr
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <FolderKanban className="w-4 h-4" />
+                  Estrutura do Projeto
+                </label>
+                <select
+                  value={formData.eapStructureId}
+                  onChange={(e) => setFormData({ ...formData, eapStructureId: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Nenhuma (projeto vazio)</option>
+                  {eapTemplates.filter(t => t.isActive).map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} • {template.phases.length} fase(s)
+                      {template.description ? ` • ${template.description.substring(0, 30)}...` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Selecione uma estrutura para copiar fases e marcos. Deixe em branco para criar projeto sem estrutura.
+                </p>
               </div>
 
               <div>
