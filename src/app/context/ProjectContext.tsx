@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Project, FilterState, ProjectSituation } from '../types';
 import { PROJECT_SITUATIONS } from '../constants/project';
 
@@ -166,7 +166,28 @@ const rawProjects = [
   },
 ];
 
-const initialProjects: Project[] = (rawProjects as any[]).map(migrateProjectData);
+const STORAGE_KEY = 'crisdu_projects';
+
+/**
+ * Carrega projetos do localStorage ou usa seed (rawProjects)
+ * SEMPRE aplica migração para garantir compatibilidade
+ */
+const getInitialProjects = (): Project[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log('[ProjectContext] Carregado do localStorage:', parsed.length, 'projetos');
+      return parsed.map(migrateProjectData);
+    }
+  } catch (error) {
+    console.warn('[ProjectContext] Erro ao ler localStorage - aplicando fallback:', error);
+  }
+  
+  // Fallback: usar seed e aplicar migração
+  console.log('[ProjectContext] Usando dados seed padrão');
+  return rawProjects.map(migrateProjectData);
+};
 
 const initialFilters: FilterState = {
   quadro: 'Todos',
@@ -177,8 +198,14 @@ const initialFilters: FilterState = {
 };
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjects] = useState<Project[]>(() => getInitialProjects());
   const [filters, setFilters] = useState<FilterState>(initialFilters);
+
+  // Sincroniza projects com localStorage sempre que state muda
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    console.log('[ProjectContext] Salvando', projects.length, 'projetos no localStorage');
+  }, [projects]);
 
   const updateProject = (id: string, updates: Partial<Project>) => {
     setProjects(prev => 
