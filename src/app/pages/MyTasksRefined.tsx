@@ -7,7 +7,6 @@ import {
   CheckSquare,
   Flag,
   Calendar,
-  BarChart3,
   List,
   LayoutGrid,
   AlertCircle,
@@ -19,12 +18,7 @@ import {
   Trash2,
   GripVertical,
   X,
-  TrendingUp,
-  Clock4,
-  CheckCircle2,
-  Users,
 } from 'lucide-react';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useTasks, EnrichedTask } from '../context/TaskContext';
 import { useUserKanban, KanbanColumn } from '../context/UserKanbanContext';
 import { useAdmin } from '../context/AdminContext';
@@ -34,7 +28,7 @@ import { TaskModal } from '../components/TaskModal';
 import { AdvancedFilter, FilterOption } from '../components/AdvancedFilter';
 import { TaskListView } from '../components/TaskListView';
 
-type ViewMode = 'kanban' | 'list' | 'dashboard';
+type ViewMode = 'kanban' | 'list';
 
 interface DraggableTaskCardProps {
   task: EnrichedTask;
@@ -573,49 +567,6 @@ export function MyTasksRefined() {
     setSearchTerm('');
   };
 
-  // Dashboard Data
-  const chartDataByStatus = useMemo(() => {
-    const statusCounts = {
-      'Backlog': filteredTasks.filter(t => t.kanbanColumn === 'backlog').length,
-      'Em andamento': filteredTasks.filter(t => t.status === 'doing').length,
-      'Em testes': filteredTasks.filter(t => t.kanbanColumn === 'testing').length,
-      'Concluído': filteredTasks.filter(t => t.status === 'done').length,
-    };
-    return Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
-  }, [filteredTasks]);
-
-  const chartDataByProject = useMemo(() => {
-    const projectCounts: Record<string, number> = {};
-    filteredTasks.forEach(t => {
-      const proj = t.projectName || 'Independentes';
-      projectCounts[proj] = (projectCounts[proj] || 0) + 1;
-    });
-    return Object.entries(projectCounts).map(([name, value]) => ({ name, value }));
-  }, [filteredTasks]);
-
-  const chartDataByPriority = useMemo(() => {
-    const priorityCounts = {
-      'Baixa': filteredTasks.filter(t => t.priority === 'low').length,
-      'Média': filteredTasks.filter(t => t.priority === 'medium').length,
-      'Alta': filteredTasks.filter(t => t.priority === 'high').length,
-      'Crítica': 0,
-    };
-    return Object.entries(priorityCounts).map(([name, Quantidade]) => ({ name, Quantidade }));
-  }, [filteredTasks]);
-
-  const chartDataByTeam = useMemo(() => {
-    const teamCounts: Record<string, number> = {};
-    filteredTasks.forEach(t => {
-      // Get team from project
-      const project = projects.find(p => p.name === t.projectName);
-      const teamName = project?.group || 'Sem equipe';
-      teamCounts[teamName] = (teamCounts[teamName] || 0) + 1;
-    });
-    return Object.entries(teamCounts).map(([name, Quantidade]) => ({ name, Quantidade }));
-  }, [filteredTasks, projects]);
-
-  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
-
   const getPriorityBadge = (priority?: string) => {
     switch (priority) {
       case 'high':
@@ -641,46 +592,29 @@ export function MyTasksRefined() {
   };
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Minhas Tarefas</h1>
-        <p className="text-gray-600">Central de execução - gerencie seu fluxo de trabalho</p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Total</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Em andamento</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Concluídas</p>
-          <p className="text-2xl font-bold text-green-600">{stats.done}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Bloqueadas</p>
-          <p className="text-2xl font-bold text-orange-600">{stats.blocked}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Atrasadas</p>
-          <p className="text-2xl font-bold text-red-600">{stats.late}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Tempo Total</p>
-          <p className="text-2xl font-bold text-purple-600">{stats.totalTime}h</p>
+      <div className="bg-white border-b border-gray-200 px-8 py-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Minhas Tarefas</h1>
+            <p className="text-gray-500 mt-1">Central de execução - gerencie seu fluxo de trabalho</p>
+          </div>
+          <button
+            onClick={() => setIsCreatingTask(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Nova Tarefa
+          </button>
         </div>
       </div>
 
-      {/* Advanced Filters - Centralized (Single Location) */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <div className="flex items-start gap-4 flex-wrap">
-          {/* Search Bar - Full Width */}
-          <div className="w-full mb-2">
+      <div className="px-8 py-8">
+        {/* Advanced Filters - Centralized */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <div className="space-y-4">
+            {/* Search Bar - Full Width */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -688,123 +622,109 @@ export function MyTasksRefined() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar tarefas..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               />
             </div>
+
+            {/* Advanced Filters Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <AdvancedFilter
+                label="Projetos"
+                options={projectOptions}
+                selected={selectedProjects}
+                onChange={setSelectedProjects}
+                placeholder="Todos"
+              />
+
+              <AdvancedFilter
+                label="Cliente"
+                options={clientOptions}
+                selected={selectedClients}
+                onChange={setSelectedClients}
+                placeholder="Todos"
+              />
+
+              <AdvancedFilter
+                label="Produto"
+                options={productOptions}
+                selected={selectedProducts}
+                onChange={setSelectedProducts}
+                placeholder="Todos"
+              />
+
+              <AdvancedFilter
+                label="Responsável"
+                options={assigneeOptions}
+                selected={selectedAssignees}
+                onChange={setSelectedAssignees}
+                placeholder="Todos"
+              />
+
+              <AdvancedFilter
+                label="Prioridade"
+                options={priorityOptions}
+                selected={selectedPriorities}
+                onChange={setSelectedPriorities}
+                placeholder="Todas"
+              />
+
+              <AdvancedFilter
+                label="Status"
+                options={statusOptions}
+                selected={selectedStatuses}
+                onChange={setSelectedStatuses}
+                placeholder="Todos"
+              />
+            </div>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
+                <span className="text-sm text-gray-600 font-medium">
+                  {filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''} encontrada{filteredTasks.length !== 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  Limpar filtros
+                </button>
+              </div>
+            )}
           </div>
-
-          {/* Advanced Filters Row */}
-          <AdvancedFilter
-            label="Projetos"
-            options={projectOptions}
-            selected={selectedProjects}
-            onChange={setSelectedProjects}
-            placeholder="Todos"
-          />
-
-          <AdvancedFilter
-            label="Cliente"
-            options={clientOptions}
-            selected={selectedClients}
-            onChange={setSelectedClients}
-            placeholder="Todos"
-          />
-
-          <AdvancedFilter
-            label="Produto"
-            options={productOptions}
-            selected={selectedProducts}
-            onChange={setSelectedProducts}
-            placeholder="Todos"
-          />
-
-          <AdvancedFilter
-            label="Responsável"
-            options={assigneeOptions}
-            selected={selectedAssignees}
-            onChange={setSelectedAssignees}
-            placeholder="Todos"
-          />
-
-          <AdvancedFilter
-            label="Prioridade"
-            options={priorityOptions}
-            selected={selectedPriorities}
-            onChange={setSelectedPriorities}
-            placeholder="Todas"
-          />
-
-          <AdvancedFilter
-            label="Status"
-            options={statusOptions}
-            selected={selectedStatuses}
-            onChange={setSelectedStatuses}
-            placeholder="Todos"
-          />
         </div>
 
-        {/* Clear Filters */}
-        {hasActiveFilters && (
-          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              {filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''} encontrada{filteredTasks.length !== 1 ? 's' : ''}
-            </span>
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
             <button
-              onClick={clearAllFilters}
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              onClick={() => setViewMode('kanban')}
+              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 ${
+                viewMode === 'kanban'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Visualização Kanban"
             >
-              <X className="w-4 h-4" />
-              Limpar todos os filtros
+              <LayoutGrid className="w-4 h-4" />
+              <span className="text-sm font-medium">Kanban</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 ${
+                viewMode === 'list'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Visualização em Lista"
+            >
+              <List className="w-4 h-4" />
+              <span className="text-sm font-medium">Lista</span>
             </button>
           </div>
-        )}
-      </div>
-
-      {/* Actions Bar */}
-      <div className="flex items-center justify-between mb-6">
-        {/* View Mode Toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-          <button
-            onClick={() => setViewMode('kanban')}
-            className={`px-3 py-1.5 rounded transition-colors ${
-              viewMode === 'kanban'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={`px-3 py-1.5 rounded transition-colors ${
-              viewMode === 'list'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <List className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('dashboard')}
-            className={`px-3 py-1.5 rounded transition-colors ${
-              viewMode === 'dashboard'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-          </button>
+          <p className="text-xs text-gray-500 ml-2">Ambas mostram os mesmos dados</p>
         </div>
-
-        {/* Create Task */}
-        <button
-          onClick={() => setIsCreatingTask(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Nova Tarefa
-        </button>
-      </div>
 
       {/* Content by View Mode */}
       {viewMode === 'kanban' && (
@@ -849,180 +769,6 @@ export function MyTasksRefined() {
           onAddSubtask={handleAddSubtask}
           onDeleteTask={handleDeleteTask}
         />
-      )}
-
-      {viewMode === 'dashboard' && (
-        <div className="space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Total de Tarefas</h3>
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Em Andamento</h3>
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <Clock4 className="w-6 h-6 text-purple-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{stats.inProgress}</p>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Concluídas</h3>
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{stats.done}</p>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Bloqueadas</h3>
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{stats.blocked}</p>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Tempo Total Registrado</h3>
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <Clock className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{stats.totalTime}h</p>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Tarefas Atrasadas</h3>
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-red-600">{stats.late}</p>
-            </div>
-          </div>
-
-          {/* Charts Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Tarefas por Status */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tarefas por Status</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartDataByStatus}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#6366f1" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Tarefas por Projeto */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tarefas por Projeto</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartDataByProject}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartDataByProject.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Tarefas por Prioridade */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tarefas por Prioridade</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartDataByPriority}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="Quantidade" fill="#8b5cf6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Tarefas por Equipe */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tarefas por Equipe</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartDataByTeam}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="Quantidade" fill="#06b6d4" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Recent Activities */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Atividades Recentes</h3>
-            <div className="space-y-3">
-              {filteredTasks.slice(0, 5).map((task) => {
-                const isLate = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done';
-                return (
-                  <div
-                    key={task.id}
-                    onClick={() => handleTaskClick(task)}
-                    className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                      <div>
-                        <p className="font-medium text-gray-900">{task.title}</p>
-                        <p className="text-sm text-gray-600">{task.projectName || 'Independente'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {isLate ? (
-                        <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">
-                          Atrasada
-                        </span>
-                      ) : (
-                        getStatusBadge(task.status)
-                      )}
-                      <AlertCircle className="w-5 h-5 text-gray-400" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Add/Edit Column Modal */}
@@ -1076,6 +822,7 @@ export function MyTasksRefined() {
           onClose={() => setIsCreatingTask(false)}
         />
       )}
+      </div>
     </div>
   );
 }
