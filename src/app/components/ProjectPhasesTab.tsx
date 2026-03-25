@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Project } from '../types';
 import { useEAP } from '../context/EAPContext';
 import { PhaseCard } from './PhaseCard';
@@ -21,6 +21,8 @@ export function ProjectPhasesTab({ project }: ProjectPhasesTabProps) {
     () => new Set(project.phases?.map(p => p.id) || [])
   );
 
+  const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set());
+
   const togglePhase = (phaseId: string) => {
     setExpandedPhases(prev => {
       const newSet = new Set(prev);
@@ -28,6 +30,18 @@ export function ProjectPhasesTab({ project }: ProjectPhasesTabProps) {
         newSet.delete(phaseId);
       } else {
         newSet.add(phaseId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleMilestone = (milestoneId: string) => {
+    setExpandedMilestones(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(milestoneId)) {
+        newSet.delete(milestoneId);
+      } else {
+        newSet.add(milestoneId);
       }
       return newSet;
     });
@@ -65,6 +79,8 @@ export function ProjectPhasesTab({ project }: ProjectPhasesTabProps) {
             phase={phase}
             isExpanded={expandedPhases.has(phase.id)}
             onToggle={() => togglePhase(phase.id)}
+            expandedMilestones={expandedMilestones}
+            onToggleMilestone={toggleMilestone}
           />
         ))}
       </div>

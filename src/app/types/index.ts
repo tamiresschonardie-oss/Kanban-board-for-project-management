@@ -128,6 +128,7 @@ export interface WBSTask {
   order: number;
   comments?: Comment[];
   projectId?: string;
+  phaseId?: string;
   milestoneId?: string;
 }
 

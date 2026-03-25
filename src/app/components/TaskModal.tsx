@@ -31,6 +31,7 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
     startDate: '',
     priority: '' as 'low' | 'medium' | 'high' | '', // Prioridade (obrigatório)
     selectedProjectId: projectId || '',
+    selectedPhaseId: '',
     selectedMilestoneId: milestoneId || '',
     link: '', // Link opcional
     systems: [] as string[], // Sistemas envolvidos
@@ -54,6 +55,7 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
       subtasks: subtasks,
       order: 0,
       projectId: formData.selectedProjectId || undefined,
+      phaseId: formData.selectedPhaseId || undefined,
       milestoneId: formData.selectedMilestoneId || undefined,
       estimatedHours: 0,
       actualHours: 0,
@@ -108,6 +110,7 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
       startDate: '',
       priority: '',
       selectedProjectId: projectId || '',
+      selectedPhaseId: '',
       selectedMilestoneId: milestoneId || '',
       link: '', // Link opcional
       systems: [] as string[], // Sistemas envolvidos
@@ -256,7 +259,9 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
                   </label>
                   <select
                     value={formData.selectedProjectId}
-                    onChange={(e) => setFormData({ ...formData, selectedProjectId: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, selectedProjectId: e.target.value, selectedPhaseId: '', selectedMilestoneId: '' });
+                    }}
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Tarefa independente</option>
@@ -267,6 +272,59 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
                     ))}
                   </select>
                 </div>
+              )}
+
+              {formData.selectedProjectId && (
+                <>
+                  {(() => {
+                    const selectedProject = projects.find(p => p.id === formData.selectedProjectId);
+                    return selectedProject && selectedProject.phases && selectedProject.phases.length > 0 ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Fase da EAP (Opcional)
+                        </label>
+                        <select
+                          value={formData.selectedPhaseId}
+                          onChange={(e) => setFormData({ ...formData, selectedPhaseId: e.target.value, selectedMilestoneId: '' })}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Sem fase específica</option>
+                          {selectedProject.phases.map((phase) => (
+                            <option key={phase.id} value={phase.id}>
+                              {phase.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {formData.selectedPhaseId && (
+                    (() => {
+                      const selectedProject = projects.find(p => p.id === formData.selectedProjectId);
+                      const selectedPhase = selectedProject?.phases?.find(p => p.id === formData.selectedPhaseId);
+                      return selectedPhase && selectedPhase.milestones.length > 0 ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Marco da Fase (Opcional)
+                          </label>
+                          <select
+                            value={formData.selectedMilestoneId}
+                            onChange={(e) => setFormData({ ...formData, selectedMilestoneId: e.target.value })}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Sem marco específico</option>
+                            {selectedPhase.milestones.map((milestone) => (
+                              <option key={milestone.id} value={milestone.id}>
+                                {milestone.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : null;
+                    })()
+                  )}
+                </>
               )}
             </div>
           </div>

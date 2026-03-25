@@ -1,14 +1,22 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Phase, Milestone as MilestoneType } from '../types';
+import { Phase } from '../types';
 import { MilestoneCard } from './MilestoneCard';
 
 interface PhaseCardProps {
   phase: Phase;
   isExpanded: boolean;
   onToggle: () => void;
+  expandedMilestones: Set<string>;
+  onToggleMilestone: (milestoneId: string) => void;
 }
 
-export function PhaseCard({ phase, isExpanded, onToggle }: PhaseCardProps) {
+export function PhaseCard({
+  phase,
+  isExpanded,
+  onToggle,
+  expandedMilestones,
+  onToggleMilestone,
+}: PhaseCardProps) {
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <button
@@ -37,7 +45,13 @@ export function PhaseCard({ phase, isExpanded, onToggle }: PhaseCardProps) {
       {isExpanded && phase.milestones.length > 0 && (
         <div className="bg-gray-50 border-t border-gray-200 p-4 space-y-2">
           {phase.milestones.map((milestone) => (
-            <MilestoneCard key={milestone.id} milestone={milestone} />
+            <MilestoneCard
+              key={milestone.id}
+              milestone={milestone}
+              isExpanded={expandedMilestones.has(milestone.id)}
+              onToggle={() => onToggleMilestone(milestone.id)}
+              showTasks={true}
+            />
           ))}
         </div>
       )}
