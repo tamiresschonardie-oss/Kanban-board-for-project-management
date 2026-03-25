@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Calendar, Users, Building2, Package, Upload, Paperclip, User, Plus, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 import { useProjects } from '../context/ProjectContext';
@@ -10,9 +10,10 @@ interface TaskModalProps {
   onClose: () => void;
   projectId?: string; // Optional: se informado, tarefa vinculada ao projeto
   milestoneId?: string; // Optional: marco específico do projeto
+  editingTask?: any; // Optional: se informado, edita task existente
 }
 
-export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, projectId, milestoneId, editingTask }: TaskModalProps) {
   const { clients, products, users, stakeholders } = useAdmin();
   const { projects, updateProject } = useProjects();
   const { addIndependentTask } = useTasks();
@@ -41,28 +42,107 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set());
 
+  // Pre-fill form when editing task
+  useEffect(() => {
+    if (editingTask) {
+      setFormData({
+        title: editingTask.title || '',
+        description: editingTask.description || '',
+        attachments: [],
+        client: '',
+        product: '',
+        assignee: editingTask.assignee || '',
+        requester: '',
+        selectedStakeholders: [],
+        demandType: '' as DemandType | '',
+        dueDate: editingTask.dueDate ? editingTask.dueDate.split('T')[0] : '',
+        startDate: editingTask.startDate ? editingTask.startDate.split('T')[0] : '',
+        priority: editingTask.priority || '',
+        selectedProjectId: editingTask.projectId || projectId || '',
+        selectedPhaseId: editingTask.phaseId || '',
+        selectedMilestoneId: editingTask.milestoneId || '',
+        link: '',
+        systems: [],
+      });
+      setSubtasks(editingTask.subtasks || []);
+    }
+  }, [editingTask, projectId]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newTask: WBSTask = {
-      id: `task-${Date.now()}`,
+    const taskId = editingTask?.id || `task-${Date.now()}`;
+    const currentStatus = editingTask?.status || 'todo';
+
+    const updatedTask: WBSTask = {
+      id: taskId,
       title: formData.title,
       description: formData.description,
-      status: 'todo',
+      status: currentStatus,
       assignee: formData.assignee,
       dueDate: formData.dueDate || undefined,
-      priority: formData.priority,
+      priority: formData.priority as 'low' | 'medium' | 'high' | undefined,
       subtasks: subtasks,
-      order: 0,
+      order: editingTask?.order || 0,
       projectId: formData.selectedProjectId || undefined,
       phaseId: formData.selectedPhaseId || undefined,
       milestoneId: formData.selectedMilestoneId || undefined,
-      estimatedHours: 0,
-      actualHours: 0,
+      estimatedHours: editingTask?.estimatedHours || 0,
+      actualHours: editingTask?.actualHours || 0,
     };
 
-    // Add task to project milestone if project and milestone are selected
-    if (formData.selectedProjectId) {
+    if (editingTask && formData.selectedProjectId) {
+      // EDIT MODE: Update task in project, possibly move between phases/milestones
+      const project = projects.find(p => p.id === formData.selectedProjectId);
+      if (project && project.phases) {
+        // Remove task from all milestones
+        let updatedPhases = project.phases.map(phase => ({
+          ...phase,
+          milestones: phase.milestones.map(milestone => ({
+            ...milestone,
+            tasks: milestone.tasks.filter(t => t.id !== taskId)
+          }))
+        }));
+
+        // Add/update task to the selected milestone
+        if (formData.selectedMilestoneId) {
+          updatedPhases = updatedPhases.map(phase => ({
+            ...phase,
+            milestones: phase.milestones.map(milestone => {
+              if (milestone.id === formData.selectedMilestoneId) {
+                return {
+                  ...milestone,
+                  tasks: [...milestone.tasks, updatedTask]
+                };
+              }
+              return milestone;
+            })
+          }));
+        } else if (formData.selectedPhaseId) {
+          // No specific milestone, add to first milestone of the phase
+          updatedPhases = updatedPhases.map(phase => {
+            if (phase.id === formData.selectedPhaseId && phase.milestones.length > 0) {
+              return {
+                ...phase,
+                milestones: phase.milestones.map((milestone, idx) => {
+                  if (idx === 0) {
+                    return {
+                      ...milestone,
+                      tasks: [...milestone.tasks, updatedTask]
+                    };
+                  }
+                  return milestone;
+                })
+              };
+            }
+            return phase;
+          });
+        }
+
+        updateProject(formData.selectedProjectId, { phases: updatedPhases });
+      }
+    } else if (formData.selectedProjectId && !editingTask) {
+      // CREATE MODE: Add new task to project
       const project = projects.find(p => p.id === formData.selectedProjectId);
       if (project && project.phases) {
         const updatedPhases = project.phases.map(phase => ({
@@ -72,12 +152,12 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
             if (formData.selectedMilestoneId && milestone.id === formData.selectedMilestoneId) {
               return {
                 ...milestone,
-                tasks: [...milestone.tasks, newTask]
+                tasks: [...milestone.tasks, updatedTask]
               };
-            } else if (!formData.selectedMilestoneId && phase.milestones[0].id === milestone.id) {
+            } else if (!formData.selectedMilestoneId && phase.milestones[0]?.id === milestone.id && phase.id === formData.selectedPhaseId) {
               return {
                 ...milestone,
-                tasks: [...milestone.tasks, newTask]
+                tasks: [...milestone.tasks, updatedTask]
               };
             }
             return milestone;
@@ -86,9 +166,9 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
 
         updateProject(formData.selectedProjectId, { phases: updatedPhases });
       }
-    } else {
+    } else if (!editingTask) {
       // Add independent task
-      addIndependentTask(newTask);
+      addIndependentTask(updatedTask);
     }
 
     onClose();
@@ -206,9 +286,15 @@ export function TaskModal({ isOpen, onClose, projectId, milestoneId }: TaskModal
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Nova Tarefa</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}
+            </h2>
             <p className="text-sm text-gray-600 mt-1">
-              {projectId ? 'Adicione uma nova tarefa ao projeto' : 'Crie uma tarefa independente'}
+              {editingTask
+                ? 'Atualize os detalhes da tarefa'
+                : projectId
+                ? 'Adicione uma nova tarefa ao projeto'
+                : 'Crie uma tarefa independente'}
             </p>
           </div>
           <button

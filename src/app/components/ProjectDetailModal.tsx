@@ -18,6 +18,7 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
   const { updateProject } = useProjects();
   const [isEditingProject, setIsEditingProject] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
 
   if (!isOpen) return null;
 
@@ -169,7 +170,7 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
             </TabsContent>
 
             <TabsContent value="structure">
-              <ProjectPhasesTab project={project} />
+              <ProjectPhasesTab project={project} onEditTask={setEditingTask} />
             </TabsContent>
 
             <TabsContent value="milestones">
@@ -197,12 +198,16 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
         />
       )}
 
-      {/* Create Task Modal */}
-      {isCreatingTask && (
+      {/* Create/Edit Task Modal */}
+      {(isCreatingTask || editingTask) && (
         <TaskModal
-          isOpen={isCreatingTask}
-          onClose={() => setIsCreatingTask(false)}
+          isOpen={isCreatingTask || !!editingTask}
+          onClose={() => {
+            setIsCreatingTask(false);
+            setEditingTask(null);
+          }}
           projectId={project.id}
+          editingTask={editingTask}
         />
       )}
     </>

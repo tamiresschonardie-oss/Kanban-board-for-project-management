@@ -6,9 +6,10 @@ import { PhaseCard } from './PhaseCard';
 
 interface ProjectPhasesTabProps {
   project: Project;
+  onEditTask?: (task: any) => void;
 }
 
-export function ProjectPhasesTab({ project }: ProjectPhasesTabProps) {
+export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps) {
   const { getEAPTemplate } = useEAP();
   
   const eapName = useMemo(() => {
@@ -81,6 +82,7 @@ export function ProjectPhasesTab({ project }: ProjectPhasesTabProps) {
             onToggle={() => togglePhase(phase.id)}
             expandedMilestones={expandedMilestones}
             onToggleMilestone={toggleMilestone}
+            onEditTask={onEditTask}
           />
         ))}
       </div>

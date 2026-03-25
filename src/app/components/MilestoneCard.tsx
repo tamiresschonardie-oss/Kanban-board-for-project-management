@@ -8,6 +8,8 @@ interface MilestoneCardProps {
   isExpanded?: boolean;
   onToggle?: () => void;
   showTasks?: boolean;
+  onEditTask?: (task: any) => void;
+  phaseId?: string;
 }
 
 const getMilestoneTypeLabel = (type: string): string => {
@@ -50,7 +52,10 @@ const getMilestoneStatusColor = (status: string): string => {
   return colors[status] || 'bg-gray-100 text-gray-700';
 };
 
-export function MilestoneCard({ milestone, isExpanded = false, onToggle, showTasks = false }: MilestoneCardProps) {
+export function MilestoneCard({ milestone, isExpanded = false, onToggle, showTasks = false, onEditTask, phaseId }: MilestoneCardProps) {
+  const tasksForThisMilestone = milestone.tasks.filter(
+    task => !phaseId || task.phaseId === phaseId || (task.phaseId === undefined)
+  );
   return (
     <div className="bg-white border border-gray-200 rounded overflow-hidden">
       <button
@@ -91,10 +96,10 @@ export function MilestoneCard({ milestone, isExpanded = false, onToggle, showTas
         </div>
       </button>
 
-      {showTasks && isExpanded && milestone.tasks.length > 0 && (
+      {showTasks && isExpanded && tasksForThisMilestone.length > 0 && (
         <div className="bg-gray-50 border-t border-gray-200 p-3 space-y-2">
-          {milestone.tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+          {tasksForThisMilestone.map((task) => (
+            <TaskCard key={task.id} task={task} onEdit={onEditTask} />
           ))}
         </div>
       )}

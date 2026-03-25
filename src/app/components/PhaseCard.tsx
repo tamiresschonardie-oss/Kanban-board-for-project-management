@@ -8,6 +8,7 @@ interface PhaseCardProps {
   onToggle: () => void;
   expandedMilestones: Set<string>;
   onToggleMilestone: (milestoneId: string) => void;
+  onEditTask?: (task: any) => void;
 }
 
 export function PhaseCard({
@@ -16,6 +17,7 @@ export function PhaseCard({
   onToggle,
   expandedMilestones,
   onToggleMilestone,
+  onEditTask,
 }: PhaseCardProps) {
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -51,6 +53,8 @@ export function PhaseCard({
               isExpanded={expandedMilestones.has(milestone.id)}
               onToggle={() => onToggleMilestone(milestone.id)}
               showTasks={true}
+              onEditTask={onEditTask}
+              phaseId={phase.id}
             />
           ))}
         </div>
