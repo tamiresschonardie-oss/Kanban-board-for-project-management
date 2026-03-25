@@ -1,4 +1,6 @@
 export type ProjectStatus = 'backlog' | 'pre-analysis' | 'documentation' | 'waiting-approval' | 'construction';
+export type ProjectSituation = 'ativo' | 'pausado' | 'cancelado';
+export type ProjectPurpose = 'expansao' | 'suporte' | 'inovacao' | 'seguranca' | 'operacional' | 'estrategico';
 
 export type MilestoneType = 'business' | 'technical' | 'regulatory' | 'delivery';
 export type MilestoneStatus = 'not-started' | 'in-progress' | 'completed' | 'delayed';
@@ -164,33 +166,76 @@ export interface Task {
   completed: boolean;
 }
 
+export interface ProjectAttachment {
+  id: string;
+  name: string;
+  url: string;
+  uploadedAt: string;
+  type: string;
+}
+
 export interface Project {
+  // Identificação básica
   id: string;
   name: string;
   group: string;
-  responsible: string;
+  logoColor: string;
+  logoText?: string;
+  
+  // Status e situação
   status: ProjectStatus;
+  situation?: ProjectSituation;
+  
+  // Responsabilidade
+  responsible: string;
+  requestedBy?: string;
+  client: string;
+  teams?: string[];
+  stakeholders?: string[];
+  
+  // Contexto do negócio
+  purpose?: ProjectPurpose;
+  objective?: string;
+  justification?: string;
+  expectedBenefits?: string[];
+  
+  // Informações complementares
+  originTicket?: string;
+  product?: string;
+  demandType?: DemandType;
+  description?: string;
+  year?: number;
+  budget?: number;
+  
+  // Datas e prazos
+  startDate?: string;
+  deadline?: string;
+  requestDate?: string;
+  completionDate?: string;
+  
+  // Documentação e anexos
+  documentation?: string;
+  attachments?: ProjectAttachment[];
+  
+  // Estrutura e execução
+  eapId?: string;
+  phases?: Phase[];
+  
+  // Progresso
   progress: number;
   tasksTotal: number;
   tasksCompleted: number;
   hoursRemaining: number;
-  deadline?: string;
-  logoColor: string;
-  logoText?: string; // Texto customizado do logo
-  client: string;
-  description?: string;
-  phases?: Phase[];
-  startDate?: string;
-  budget?: number;
-  demandType?: DemandType;
-  requester?: string;
-  year?: number;
-  product?: string;
+  totalTimeTracked?: number;
+  
+  // Metadados
   coverImage?: string;
-  stakeholders?: string[];
-  isPaused?: boolean; // Indica se o projeto está pausado
-  tags?: string[]; // Tags do projeto
-  quadro?: string; // Quadro/board ao qual o projeto pertence
+  tags?: string[];
+  quadro?: string;
+  
+  // Deprecado - manter apenas para compatibilidade
+  requester?: string;
+  isPaused?: boolean;
 }
 
 export interface FilterState {

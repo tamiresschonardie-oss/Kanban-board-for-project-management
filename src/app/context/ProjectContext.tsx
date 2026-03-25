@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Project, FilterState } from '../types';
+import { Project, FilterState, ProjectSituation } from '../types';
+import { PROJECT_SITUATIONS } from '../constants/project';
 
 interface ProjectContextType {
   projects: Project[];
@@ -13,7 +14,41 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const initialProjects: Project[] = [
+/**
+ * Migra dados antigos de projetos para o novo formato
+ * Converte campos deprecated (isPaused, requester) para novos campos (situation, requestedBy)
+ */
+const migrateProjectData = (project: Project): Project => {
+  // Determinar situation baseado em isPaused (compatibilidade)
+  const situation: ProjectSituation = project.isPaused
+    ? PROJECT_SITUATIONS.PAUSADO
+    : PROJECT_SITUATIONS.ATIVO;
+
+  return {
+    ...project,
+    // Novos campos com defaults seguros
+    situation: project.situation || situation,
+    requestedBy: project.requestedBy || project.requester,
+    teams: project.teams || [],
+    objective: project.objective,
+    justification: project.justification,
+    expectedBenefits: project.expectedBenefits || [],
+    originTicket: project.originTicket,
+    requestDate: project.requestDate,
+    completionDate: project.completionDate,
+    documentation: project.documentation,
+    attachments: project.attachments || [],
+    eapId: project.eapId,
+    totalTimeTracked: project.totalTimeTracked || 0,
+    purpose: project.purpose,
+    
+    // Manter deprecated fields para compatibilidade transitória
+    requester: project.requester,
+    isPaused: project.isPaused,
+  };
+};
+
+const rawProjects = [
   {
     id: '95662',
     name: 'Vendas Plus',
@@ -130,6 +165,8 @@ const initialProjects: Project[] = [
     quadro: 'Enterprise H1/H2',
   },
 ];
+
+const initialProjects: Project[] = (rawProjects as any[]).map(migrateProjectData);
 
 const initialFilters: FilterState = {
   quadro: 'Todos',
