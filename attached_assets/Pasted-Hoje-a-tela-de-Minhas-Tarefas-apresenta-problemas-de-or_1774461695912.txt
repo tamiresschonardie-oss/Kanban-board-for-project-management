@@ -1,0 +1,23 @@
+Hoje a tela de “Minhas Tarefas” apresenta problemas de organização visual e usabilidade, principalmente por conta da duplicidade de filtros e da falta de hierarquia clara entre os elementos. A proposta é reestruturar completamente essa tela, tornando-a mais moderna, intuitiva e consistente, tomando como referência boas práticas observadas em ferramentas como ClickUp, Cange e o sistema desenvolvido pela tester.
+
+O primeiro ponto crítico a ser corrigido é a duplicidade de filtros. Atualmente, existem dois blocos de filtros na tela, o que gera confusão e poluição visual. É necessário unificar todos os filtros em um único local, posicionado logo abaixo do cabeçalho da página. Esse novo bloco deve concentrar toda a capacidade de filtragem do sistema, incluindo busca por texto (“Buscar tarefas...”) e filtros como projeto, cliente, produto, responsável, prioridade e status. Cada filtro deve permitir busca interna por texto e seleção múltipla de opções, seguindo um padrão moderno de dropdown com checkboxes, semelhante ao que foi apresentado no exemplo. O objetivo é que o usuário consiga filtrar rapidamente grandes volumes de tarefas de forma simples e eficiente, sem precisar interagir com múltiplas áreas da tela.
+
+Abaixo desse bloco de filtros, deve existir um controle de visualização que permita alternar entre Kanban e Lista, deixando claro que ambas são apenas formas diferentes de visualizar exatamente os mesmos dados, e não sistemas separados. A visualização padrão deve ser o Kanban, por ser mais visual e intuitiva.
+
+Na visualização em Kanban, o layout deve ser limpo e organizado, com colunas representando as fases do fluxo (ex: Backlog, Em andamento, Em testes, Concluído), com cores suaves e bem definidas. Cada coluna deve exibir a quantidade de tarefas e permitir criação de novas fases pelo usuário. Os cards devem ser simples, mas informativos, contendo título, tags, responsável, prazo e um indicativo de progresso (como checklist). As colunas devem poder ser reorganizadas livremente e refletir exatamente o fluxo definido pelo usuário.
+
+Já na visualização em Lista, deve ser apresentada uma estrutura mais analítica e detalhada, semelhante ao modelo do ClickUp. As tarefas devem ser exibidas em formato de tabela, com colunas como nome, responsável, data de vencimento, prioridade e status. Um ponto fundamental aqui é permitir uma estrutura hierárquica, onde tarefas podem ter subtarefas e múltiplos níveis de profundidade. Essa hierarquia deve ser visualmente clara, com indentação e possibilidade de expandir e recolher os níveis. Também deve ser possível adicionar subtarefas diretamente na linha da tarefa, utilizando um botão de “+”, além de permitir edição inline dos campos e alteração de status diretamente na linha.
+
+Independentemente da visualização (Kanban ou Lista), ao clicar em uma tarefa deve ser aberto um único padrão de card/modal, garantindo consistência na experiência. Esse card deve ser completo e dividido em áreas bem definidas. Na parte principal, deve conter título, descrição, subtarefas (com possibilidade de edição e criação), checklist, controle de tempo e anexos. Já na lateral, devem estar os metadados da tarefa, como status, responsável, projeto, equipe, datas, prioridade, tags e sistemas envolvidos. Também deve existir uma área de comentários e histórico de atividades, permitindo rastreabilidade das ações realizadas na tarefa.
+
+Outro ponto importante é a forma de controle de status. O botão direto de “concluir tarefa” não deve existir. A mudança de status deve acontecer exclusivamente por meio da alteração da fase, utilizando um seletor (dropdown) que lista todas as fases existentes no Kanban. Esse seletor deve permitir busca e mudança para qualquer fase disponível, garantindo flexibilidade e aderência ao fluxo definido pelo usuário.
+
+Do ponto de vista visual, toda a interface deve seguir princípios modernos: layout limpo, espaçamentos bem definidos, uso de cores suaves, hierarquia clara de informação e redução de ruído visual. Elementos duplicados, inconsistentes ou desnecessários devem ser removidos.
+
+O objetivo final dessa reestruturação é transformar a tela de “Minhas Tarefas” em uma central de execução eficiente, onde o usuário consiga:
+
+Entender rapidamente o estado das suas tarefas
+Alternar entre visão visual (Kanban) e analítica (Lista) sem perder contexto
+Gerenciar tarefas complexas com subtarefas e hierarquia
+Utilizar filtros de forma rápida e intuitiva
+Trabalhar com uma interface moderna, organizada e consistente
