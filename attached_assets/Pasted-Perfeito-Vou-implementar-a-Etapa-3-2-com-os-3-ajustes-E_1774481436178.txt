@@ -1,0 +1,130 @@
+Perfeito! Vou implementar a Etapa 3.2 com os 3 ajustes. Escolho "Estrutura" como nome da aba (mais genérico e claro).
+
+Perfeito! Vou implementar agora. Criarei os 3 componentes e a aba, com os ajustes que pediu.
+
+✅ ETAPA 3.2 - VISUALIZAÇÃO DA EAP DENTRO DO PROJETO (IMPLEMENTADA)
+📊 RESUMO DAS MUDANÇAS
+Arquivos Criados:
+Arquivo	Linhas	Responsabilidade
+src/app/components/ProjectPhasesTab.tsx	67	Aba principal - visualização hierárquica com origem da EAP
+src/app/components/PhaseCard.tsx	40	Card de fase - expandível com detalhes
+src/app/components/MilestoneCard.tsx	52	Card de marco - mostra tipo, status, SLA e descrição
+Arquivos Modificados:
+Arquivo	Mudança	Detalhe
+src/app/components/ProjectDetailModal.tsx	+1 import	ProjectPhasesTab
+src/app/components/ProjectDetailModal.tsx	+1 icon import	Layers (para aba)
+src/app/components/ProjectDetailModal.tsx	+1 trigger	Aba "Estrutura" (novo)
+src/app/components/ProjectDetailModal.tsx	+1 content	TabsContent para "Estrutura"
+🎯 AJUSTES IMPLEMENTADOS
+1️⃣ Nome da Aba: "Estrutura"
+✅ Ícone: Layers (evita confusão com fases de governança)
+✅ Label: "Estrutura" (genérico e claro)
+✅ Position: Entre "Visão Geral" e "Marcos"
+
+2️⃣ Informação de Origem (Busca Correta da EAP)
+// ProjectPhasesTab.tsx
+const eapName = useMemo(() => {
+  if (!project.eapId) return null;
+  const template = getEAPTemplate(project.eapId);
+  return template?.name || null;  // ← Busca nome completo, não ID
+}, [project.eapId, getEAPTemplate]);
+// Header na aba:
+{eapName && (
+  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <p className="text-sm text-blue-700 font-medium">
+      <span className="opacity-75">Origem: </span>
+      {eapName}  {/* ← Exibe "EAP Padrão - Fábrica", não ID */}
+    </p>
+  </div>
+)}
+✅ Zero exibição de ID
+✅ Busca do EAPContext (useEAP)
+✅ Fallback limpo: Se EAP não encontrada, não exibe origem
+
+3️⃣ Estado Inicial com useEffect (Sem Reset)
+// Todas as fases começam expandidas
+const [expandedPhases, setExpandedPhases] = useState<Set<string>>(
+  () => new Set(project.phases?.map(p => p.id) || [])
+  //   ↑ Factory function (executa UMA VEZ na primeira render)
+);
+// Toggle preserva state (não reseta)
+const togglePhase = (phaseId: string) => {
+  setExpandedPhases(prev => {
+    const newSet = new Set(prev);
+    if (newSet.has(phaseId)) {
+      newSet.delete(phaseId);
+    } else {
+      newSet.add(phaseId);
+    }
+    return newSet;  // ← Novo Set com mudança localizada
+  });
+};
+✅ Expandidas por padrão (primeira render)
+✅ Sem reset ao interagir (toggle mantém state)
+✅ Sem useEffect (state é responsável)
+
+✅ VISUALIZAÇÃO NA ABA "ESTRUTURA"
+Projeto COM EAP:
+┌─────────────────────────────────────────────┐
+│ Origem: EAP Padrão - Fábrica                │ ← Header com busca correta
+├─────────────────────────────────────────────┤
+│
+│ ▼ Fase 1: Análise                          │
+│  Descrição: Fase de levantamento...        │
+│  Marcos: 2                                  │
+│  ├─ Marco 1.1: Análise Inicial              │
+│  │  Negócio | Não iniciado | SLA: 5 dias   │
+│  │  Descrição: Levantamento...              │
+│  └─ Marco 1.2: Viabilidade                  │
+│     Negócio | Não iniciado | SLA: 5 dias   │
+│
+│ ▼ Fase 2: Desenvolvimento                   │
+│  ...                                         │
+│
+│ ▼ Fase 3: Testes                            │
+│  ...                                         │
+└─────────────────────────────────────────────┘
+Projeto SEM EAP:
+┌─────────────────────────────────────────────┐
+│                                              │
+│      Sem estrutura de fases                  │
+│                                              │
+│  Este projeto não possui uma estrutura      │
+│  de fases definida.                          │
+│                                              │
+└─────────────────────────────────────────────┘
+🔒 ISOLAMENTO TOTAL CONFIRMADO
+Outras Abas Não Afetadas:
+✅ Visão Geral: Sem mudanças (mesmo comportamento)
+✅ Marcos: Sem mudanças (mesmo comportamento)
+✅ Gantt: Sem mudanças (mesmo comportamento)
+✅ Tarefas: Sem mudanças (mesmo comportamento)
+
+Projetos Antigos:
+✅ Projetos existentes (antes de 3.1): Mostram "Sem estrutura"
+✅ Kanban: Continua funcionando normalmente
+✅ Fluxo de edição: Zero impacto
+
+Compatibilidade Retroativa:
+// Se project.phases for undefined ou []
+if (!project.phases || project.phases.length === 0) {
+  return <div>Sem estrutura de fases...</div>;
+  //      ↑ Fail-safe, nunca quebra
+}
+📋 ESTRUTURA TÉCNICA FINAL
+Aspecto	Detalhes
+Nova Aba	"Estrutura" (icon: Layers)
+Estado Inicial	Todas as fases expandidas
+Busca de Origem	useEAP → getEAPTemplate(eapId)
+Exibição de ID	❌ Nunca exibido
+Toggle	Preserva state (sem reset)
+Projetos sem EAP	Mostram mensagem amigável
+Outros fluxos	Zero impacto
+🎯 CONFIRMAÇÕES FINAIS
+✅ Etapa 3.2 IMPLEMENTADA com os 3 ajustes solicitados
+✅ Compilação: Sem erros, servidor reiniciado com sucesso
+✅ Isolamento: Apenas ProjectDetailModal.tsx e 3 novos componentes
+✅ Compatibilidade: Retroativa (projetos antigos + novos funcionam)
+✅ UX: Claro, sem confusão com governança, informação de origem correta
+
+Pronto para validação manual dos dois cenários (com/sem EAP)!
