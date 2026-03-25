@@ -1,0 +1,213 @@
+1. Estrutura geral da tela (visão macro)
+
+A tela representa o card detalhado de uma tarefa/projeto (modal ou página lateral expandida).
+
+Ela é dividida em 3 grandes áreas:
+
+Header (topo da tarefa)
+Corpo principal (conteúdo da tarefa)
+Sidebar lateral direita (atividade + interação)
+2. Header da tarefa
+2.1 Breadcrumb / Contexto
+
+Localizado no topo esquerdo:
+
+Espaço da equipe
+Nome do workspace
+Nome da lista/projeto (ex: Demandas)
+Indicação de navegação (hierarquia)
+
+👉 Função:
+Permitir entender rapidamente onde a tarefa está dentro do sistema.
+
+2.2 Tipo e metadados rápidos
+
+Logo abaixo do breadcrumb:
+
+Tipo da tarefa (ex: "Tarefa")
+Ícones auxiliares (comentários, anexos, subtarefas, etc.)
+Contadores (ex: quantidade de subtarefas, interações)
+2.3 Título da tarefa
+
+Elemento principal:
+
+Nome da tarefa (ex: Notificações In-App Company v1)
+Campo editável inline
+
+👉 Deve permitir:
+
+edição direta
+foco visual forte (hierarquia máxima)
+2.4 Ações rápidas (top-right)
+Compartilhar
+Fechar
+Favoritar
+IA / sugestões (opcional)
+3. Bloco de resumo e atributos principais
+
+Logo abaixo do título, temos um bloco horizontal de propriedades:
+
+3.1 Status
+Exibido como badge (ex: BACKLOG)
+Dropdown para alteração
+Mudança de status deve refletir no Kanban
+3.2 Responsáveis
+Exibe usuários atribuídos
+Permite adicionar/remover
+Multi-usuário
+3.3 Datas
+Data de início
+Data de vencimento
+Indicador visual de prazo
+3.4 Prioridade
+Ex: Alta
+Com cor/ícone
+3.5 Tempo
+Controle de tempo (start / tracking)
+Pode ser manual ou automático
+3.6 Campos adicionais (“Mais”)
+Tags
+Sistemas
+Cliente
+Produto
+Tipo de demanda
+Links (ex: Confluence)
+
+👉 Esse bloco deve ser flexível e expansível
+
+4. Corpo principal da tarefa
+4.1 Descrição
+
+Campos estruturados:
+
+Texto principal (descrição livre)
+Pode conter:
+formatação
+links
+listas
+
+Exemplo no print:
+
+Objetivo mensurável
+Escopo
+
+👉 Deve permitir:
+
+expandir/recolher
+edição inline
+4.2 Seção de subtarefas (ESSENCIAL)
+
+Esse é o bloco mais importante da tela.
+
+Estrutura:
+Lista hierárquica
+Suporte a múltiplos níveis
+Expandir/recolher subtarefas
+Indicação visual de nível (indentação)
+4.2.1 Cada item da lista contém:
+Nome da subtarefa
+Ícone de status
+Responsável
+Prioridade
+Possível drag para reordenar
+4.2.2 Interações possíveis:
+Expandir / recolher grupo
+Adicionar subtarefa (botão +)
+Editar nome inline
+Reordenar
+Criar níveis (sub-subtarefas)
+4.2.3 Controles no topo da lista:
+Classificar
+Expandir tudo
+Sugestões (IA)
+Adicionar nova subtarefa
+4.2.4 Rodapé da lista:
+“Adicionar tarefa”
+Mostrar tarefas fechadas
+4.2.5 Regras importantes:
+Subtarefas podem existir sem limite de profundidade
+Cada subtarefa herda contexto da tarefa principal
+Pode virar tarefa independente (opcional no futuro)
+5. Ações adicionais no corpo
+
+Abaixo da lista:
+
+Vincular dependências
+Criar checklist
+Anexar arquivos
+
+👉 Essas ações expandem o escopo da tarefa
+
+6. Sidebar lateral direita (Activity)
+6.1 Activity (histórico)
+Linha do tempo de eventos:
+criação da tarefa
+criação de subtarefas
+alterações
+6.2 Comentários
+Campo de input:
+texto
+anexos
+menções (@user)
+Botões:
+comentar
+anexar
+ações rápidas
+6.3 Notificações
+Indicador de atualizações
+Alertas de interação
+7. Comportamento da tela (MUITO IMPORTANTE)
+7.1 Abertura do card
+
+Essa tela deve abrir:
+
+Ao clicar na tarefa no Kanban
+Ao clicar na tarefa na Lista
+
+👉 Deve ser o mesmo componente sempre
+
+7.2 Sincronização
+
+Qualquer alteração aqui deve refletir em:
+
+Kanban
+Lista
+EAP do projeto (se vinculado)
+7.3 Hierarquia
+
+A estrutura deve suportar:
+
+Tarefa principal
+Subtarefas
+Subníveis infinitos
+8. Aplicação no seu sistema (tradução direta)
+
+Você precisa adaptar isso para:
+
+8.1 Tarefas com projeto
+vinculadas à EAP
+impactam marcos
+seguem fluxo do projeto
+8.2 Tarefas sem projeto
+continuam existindo normalmente
+usam Kanban pessoal
+podem ser convertidas depois
+9. Componentes obrigatórios (resumo técnico)
+
+Para implementar isso no seu sistema, você precisa:
+
+Modal de tarefa unificado
+Lista hierárquica com expansão
+Sistema de propriedades (status, responsável, datas, etc.)
+Sistema de comentários
+Sistema de histórico
+Sistema de subtarefas com drag & drop
+Campos dinâmicos (admin configurável)
+10. O que essa tela resolve (visão produto)
+
+Essa estrutura resolve:
+
+Falta de detalhamento de tarefas
+Falta de hierarquia (EAP na prática)
+Falta de rastreabilidade
+Falta de centralização de informações
