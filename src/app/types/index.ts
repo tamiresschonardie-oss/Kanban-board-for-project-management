@@ -152,6 +152,8 @@ export interface Phase {
   description?: string; // Descrição da fase
   order: number;
   milestones: Milestone[];
+  startDate?: string; // Data inicial da fase (opcional)
+  endDate?: string;   // Data final da fase (opcional)
 }
 
 export interface EAP {

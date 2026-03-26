@@ -10,6 +10,7 @@ import { ProjectModal } from './ProjectModal';
 import { TaskModal } from './TaskModal';
 import { ProjectTasksKanbanView } from './ProjectTasksKanbanView';
 import { ProjectPhasesTab } from './ProjectPhasesTab';
+import { ProjectGanttTab } from './ProjectGanttTab';
 
 interface ProjectDetailModalProps {
   project: Project;
@@ -196,7 +197,7 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
             </TabsContent>
 
             <TabsContent value="gantt">
-              <GanttTab project={project} milestones={allMilestones} />
+              <ProjectGanttTab project={project} allTasks={allTasks} />
             </TabsContent>
 
             <TabsContent value="tasks">
