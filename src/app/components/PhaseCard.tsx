@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Edit2 } from 'lucide-react';
-import { useDrop } from 'react-dnd';
+import { useMemo } from 'react';
 import { Phase, WBSTask } from '../types';
 import { useTasks } from '../context/TaskContext';
 import { getPhaseStatusBadge, PhaseStatus } from '../utils/phaseStatusCalculator';
@@ -33,24 +33,12 @@ export function PhaseCard({
   onEditTask,
   onEditPhase,
 }: PhaseCardProps) {
-  const { moveTaskInGroup } = useTasks();
-
   // Tasks sem marco específico
-  const tasksWithoutMilestone = tasks.filter(t => !t.milestoneId).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const tasksWithoutMilestone = useMemo(
+    () => tasks.filter(t => !t.milestoneId).sort((a, b) => (a.order || 0) - (b.order || 0)),
+    [tasks]
+  );
   const statusBadge = getPhaseStatusBadge(phaseStatus);
-
-  // Drop zone para reordenar tasks
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'REORDER_TASK',
-    drop: (item: { taskId: string }, monitor) => {
-      if (!projectId) return;
-      // O drop é tratado no TaskCard drop target específico (por índice)
-      return { phaseId: phase.id, milestoneId: undefined };
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  }), [projectId, phase.id]);
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -133,7 +121,7 @@ export function PhaseCard({
 
           {/* Tasks without milestone */}
           {tasksWithoutMilestone.length > 0 && (
-            <div ref={drop} className={`border border-gray-200 rounded p-3 ${isOver ? 'bg-blue-50' : ''}`}>
+            <div className="border border-gray-200 rounded p-3">
               <div className="text-sm font-medium text-gray-700 mb-2">Tarefas da Fase (sem marco específico)</div>
               <div className="space-y-1">
                 {tasksWithoutMilestone.map((task, index) => (

@@ -26,7 +26,7 @@ export function TaskCardWithDropZone({
   onEdit,
   onUpdateOrder,
 }: TaskCardWithDropZoneProps) {
-  const { moveTaskInGroup } = useTasks();
+  const { updateTask } = useTasks();
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'REORDER_TASK',
@@ -45,16 +45,11 @@ export function TaskCardWithDropZone({
         const [movedTask] = reorderedTasks.splice(fromIndex, 1);
         reorderedTasks.splice(toIndex, 0, movedTask);
 
-        // Renormalizar orders (0, 1, 2, 3...)
+        // Renormalizar orders (0, 1, 2, 3...) - ATUALIZAR DIRETO NO CONTEXTO
         reorderedTasks.forEach((t, i) => {
-          if (t.order !== i) {
-            const updates = { ...t, order: i };
-            // Atualizar via contexto
-            if (milestoneId) {
-              moveTaskInGroup(projectId, phaseId, milestoneId, t.id, i > fromIndex ? 'down' : 'up');
-            } else {
-              moveTaskInGroup(projectId, phaseId, undefined, t.id, i > fromIndex ? 'down' : 'up');
-            }
+          if ((t.order || 0) !== i) {
+            // Chamar updateTask diretamente com a nova ordem
+            updateTask(t.id, { order: i });
           }
         });
 
@@ -66,7 +61,7 @@ export function TaskCardWithDropZone({
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
-  }), [task.id, index, projectId, phaseId, milestoneId, allTasks, moveTaskInGroup]);
+  }), [task.id, index, projectId, phaseId, milestoneId, allTasks, updateTask]);
 
   return (
     <div

@@ -1,0 +1,71 @@
+A funcionalidade continua sem funcionar após nova correção. Considere que a implementação ainda está incompleta ou incorreta.
+
+Status validado em teste real:
+
+Continua sem reordenar ao arrastar e soltar
+Continua sem funcionar no Fluxo do Projeto
+Continua sem funcionar em Minhas Tarefas
+Continua sem funcionar na Estrutura
+Portanto, não entregue nova resposta dizendo que foi corrigido sem validar o comportamento real na interface
+
+Quero que você faça agora uma correção completa, com diagnóstico objetivo da causa raiz.
+
+O que precisa fazer
+Inspecionar a implementação atual de drag-and-drop
+Verificar explicitamente:
+se existe provider de DnD envolvendo a árvore correta
+se os itens estão realmente marcados como draggable/sortable
+se os containers de drop estão configurados
+se o evento de drag inicia
+se o evento de drop/disparo de reorder acontece
+se o estado é atualizado após o drop
+se a UI está renderizando pela lista reordenada
+se a persistência ocorre após a mudança
+Identificar e corrigir a causa exata
+Não quero mais solução genérica.
+Quero que você descubra exatamente qual destes pontos está quebrado:
+drag não inicia
+drop não detecta destino
+destination/source não são resolvidos
+reorder muda só memória local e não contexto
+contexto muda mas render continua vindo de outra fonte
+order não é recalculado
+persistência não salva
+a tela renderiza lista sem .sort(order)
+Padronizar a reordenação
+Após soltar uma task:
+identificar o grupo correto da task
+mesmo projeto
+mesma fase
+mesmo milestone, ou bloco “Sem Marco”
+recalcular a ordem completa do grupo
+persistir os novos order
+re-renderizar imediatamente
+Garantir funcionamento real nas 3 telas
+A correção precisa funcionar de verdade em:
+Fluxo do Projeto
+Minhas Tarefas
+Estrutura
+Validar com evidência técnica
+Depois de corrigir, quero que você informe objetivamente:
+qual era a causa raiz
+quais arquivos foram alterados
+qual fluxo foi corrigido
+como a reordenação agora acontece do drag até a persistência
+Critério de aceite
+Só considerar concluído se:
+eu conseguir arrastar uma task para cima/baixo
+a task mudar de posição imediatamente
+ao dar refresh a ordem continuar
+a mesma ordem aparecer consistente nas outras visualizações
+Importante
+
+Não responda novamente apenas com “corrigi” ou “implementei”.
+Primeiro identifique a causa real no código, corrija, e só então retorne com:
+
+causa raiz
+arquivos alterados
+comportamento implementado
+como validar
+
+Hoje, pelo teste manual, o drag-and-drop segue totalmente sem funcionar.
