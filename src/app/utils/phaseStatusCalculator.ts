@@ -1,4 +1,4 @@
-import { WBSTask } from '../types';
+import { WBSTask, Project, ProjectExecutionStatus } from '../types';
 
 export type PhaseStatus = 'não-iniciado' | 'em-andamento' | 'concluído' | 'em-risco';
 
@@ -65,4 +65,53 @@ export function getPhaseStatusColor(status: PhaseStatus): string {
   };
 
   return colorMap[status];
+}
+
+/**
+ * Calcula o status automático de execução do projeto baseado no status das fases
+ * @param project Projeto
+ * @param allTasks Todas as tasks do projeto
+ * @returns Status de execução do projeto
+ */
+export function getProjectExecutionStatus(project: Project, allTasks: WBSTask[]): ProjectExecutionStatus {
+  if (!project.phases || project.phases.length === 0) {
+    return 'não-iniciado';
+  }
+
+  const phaseStatuses = project.phases.map(phase => getPhaseStatus(phase.id, allTasks));
+
+  // Ordem de prioridade:
+  // 1. Em risco (máxima prioridade)
+  if (phaseStatuses.some(s => s === 'em-risco')) {
+    return 'em-risco';
+  }
+
+  // 2. Todas concluídas
+  if (phaseStatuses.every(s => s === 'concluído')) {
+    return 'concluído';
+  }
+
+  // 3. Pelo menos uma em andamento
+  if (phaseStatuses.some(s => s === 'em-andamento')) {
+    return 'em-andamento';
+  }
+
+  // 4. Padrão: não iniciado (todas "não-iniciado")
+  return 'não-iniciado';
+}
+
+/**
+ * Retorna um badge formatado com emoji e label do status de execução do projeto
+ * @param status Status de execução do projeto
+ * @returns Objeto com emoji e label
+ */
+export function getProjectExecutionStatusBadge(status: ProjectExecutionStatus): { emoji: string; label: string; color: string } {
+  const statusConfig: Record<ProjectExecutionStatus, { emoji: string; label: string; color: string }> = {
+    'não-iniciado': { emoji: '⭕', label: 'Não iniciado', color: 'bg-gray-100 text-gray-700' },
+    'em-andamento': { emoji: '🔵', label: 'Em andamento', color: 'bg-blue-100 text-blue-700' },
+    'concluído': { emoji: '✅', label: 'Concluído', color: 'bg-green-100 text-green-700' },
+    'em-risco': { emoji: '⚠️', label: 'Em risco', color: 'bg-red-100 text-red-700' },
+  };
+
+  return statusConfig[status];
 }

@@ -15,11 +15,13 @@ import {
 } from "lucide-react";
 import { useProjects } from "../context/ProjectContext";
 import { useAdmin } from "../context/AdminContext";
+import { useTasks } from "../context/TaskContext";
 import { ProjectListTable } from "../components/ProjectListTable";
 import { ProjectDetailModal } from "../components/ProjectDetailModal";
 import { Project, ProjectStatus } from "../types";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { getProjectExecutionStatus, getProjectExecutionStatusBadge } from "../utils/phaseStatusCalculator";
 
 const KANBAN_COLUMNS: {
   id: ProjectStatus;
@@ -44,9 +46,15 @@ const KANBAN_COLUMNS: {
 interface KanbanCardProps {
   project: Project;
   onEdit: (project: Project) => void;
+  allTasks?: any[];
 }
 
-function KanbanCard({ project, onEdit }: KanbanCardProps) {
+function KanbanCard({ project, onEdit, allTasks = [] }: KanbanCardProps) {
+  // Calculate execution status if tasks available
+  const executionStatus = project.phases && allTasks.length > 0 
+    ? getProjectExecutionStatus(project, allTasks)
+    : 'não-iniciado';
+  const executionStatusBadge = getProjectExecutionStatusBadge(executionStatus);
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "PROJECT",
     item: { id: project.id },
@@ -164,10 +172,20 @@ function KanbanCard({ project, onEdit }: KanbanCardProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <span className={`text-xs ${isPaused ? 'text-gray-500' : 'text-gray-600'}`}>{project.responsible}</span>
           <span className={`text-xs ${isPaused ? 'text-gray-400' : 'text-gray-500'}`}>{project.progress}%</span>
         </div>
+
+        {/* Execution Status Badge */}
+        {project.phases && (
+          <div className="flex items-center gap-1 pt-2 border-t border-gray-100">
+            <span className="text-sm">{executionStatusBadge.emoji}</span>
+            <span className={`text-xs font-medium ${isPaused ? 'text-gray-500' : 'text-gray-700'}`}>
+              {executionStatusBadge.label}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -218,6 +236,7 @@ function KanbanColumn({
             key={project.id}
             project={project}
             onEdit={onEdit}
+            allTasks={allTasks}
           />
         ))}
       </div>
@@ -267,6 +286,7 @@ export function TeamWorkspace() {
   const { team } = useParams<{ team: string }>();
   const { projects, updateProject } = useProjects();
   const { clients, products, users } = useAdmin();
+  const { allTasks } = useTasks();
   const [selectedProject, setSelectedProject] = useState<
     Project | undefined
   >();

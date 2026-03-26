@@ -5,6 +5,7 @@ import { Project, Milestone, Phase, WBSTask, Subtask } from '../types';
 import { useProjects } from '../context/ProjectContext';
 import { useTasks } from '../context/TaskContext';
 import { getProjectProgress } from '../utils/progressCalculator';
+import { getProjectExecutionStatus, getProjectExecutionStatusBadge } from '../utils/phaseStatusCalculator';
 import { ProjectModal } from './ProjectModal';
 import { TaskModal } from './TaskModal';
 import { ProjectTasksKanbanView } from './ProjectTasksKanbanView';
@@ -27,6 +28,10 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
 
   // Calculate project progress
   const calculatedProgress = getProjectProgress(project, allTasks);
+  
+  // Calculate project execution status (EAP-based)
+  const executionStatus = getProjectExecutionStatus(project, allTasks);
+  const executionStatusBadge = getProjectExecutionStatusBadge(executionStatus);
 
   // Get all milestones from all phases
   const allMilestones: Milestone[] = project.phases?.flatMap((phase) => phase.milestones) || [];
@@ -110,7 +115,7 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-4 gap-4 p-6 border-b">
+          <div className="grid grid-cols-5 gap-4 p-6 border-b">
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Progresso</p>
               <p className="text-2xl font-bold text-gray-900">{calculatedProgress}%</p>
@@ -128,6 +133,13 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Status</p>
               <StatusBadge status={project.status} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-500 mb-1">Execução</p>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-lg">{executionStatusBadge.emoji}</span>
+                <span className="text-sm font-medium text-gray-700">{executionStatusBadge.label}</span>
+              </div>
             </div>
           </div>
 

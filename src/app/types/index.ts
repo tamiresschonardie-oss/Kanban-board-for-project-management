@@ -1,4 +1,5 @@
 export type ProjectStatus = 'backlog' | 'pre-analysis' | 'documentation' | 'waiting-approval' | 'construction';
+export type ProjectExecutionStatus = 'não-iniciado' | 'em-andamento' | 'concluído' | 'em-risco';
 export type ProjectSituation = 'ativo' | 'pausado' | 'cancelado';
 export type ProjectPurpose = 'expansao' | 'suporte' | 'inovacao' | 'seguranca' | 'operacional' | 'estrategico';
 
