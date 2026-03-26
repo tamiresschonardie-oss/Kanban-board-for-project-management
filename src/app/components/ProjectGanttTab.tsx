@@ -91,8 +91,11 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
             const status = getPhaseStatus(phase.id, allTasks);
             const statusBadge = getPhaseStatusBadge(status);
 
+            // Obter datas da fase (considerando plannedStartDate/plannedEndDate ou fallback)
+            const phaseDates = getPhaseDisplayDates(phase);
+
             // Verificar se fase tem datas
-            if (!phase.startDate || !phase.endDate) {
+            if (!phaseDates.startDate || !phaseDates.endDate) {
               return (
                 <div key={phase.id} className="flex items-center gap-2">
                   <div className="w-48 flex-shrink-0">
@@ -108,7 +111,6 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
             }
 
             const position = getPhaseBarPosition(phase, projectStart, totalDays);
-            const phaseDates = getPhaseDisplayDates(phase);
             const duration = calculateDuration(phaseDates.startDate, phaseDates.endDate);
 
             // Determinar cor da barra baseada no status
