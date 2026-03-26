@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Project } from '../types';
+import { Project, Phase } from '../types';
 import { useEAP } from '../context/EAPContext';
 import { useTasks } from '../context/TaskContext';
 import { getPhaseProgress } from '../utils/progressCalculator';
 import { getPhaseStatus } from '../utils/phaseStatusCalculator';
 import { PhaseCard } from './PhaseCard';
+import { EditPhaseModal } from './EditPhaseModal';
 
 interface ProjectPhasesTabProps {
   project: Project;
@@ -27,6 +28,8 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
   );
 
   const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set());
+  
+  const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
 
   const togglePhase = (phaseId: string) => {
     setExpandedPhases(prev => {
@@ -96,10 +99,21 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
               expandedMilestones={expandedMilestones}
               onToggleMilestone={toggleMilestone}
               onEditTask={onEditTask}
+              onEditPhase={() => setEditingPhase(phase)}
             />
           );
         })}
       </div>
+
+      {/* Edit Phase Modal */}
+      {editingPhase && (
+        <EditPhaseModal
+          phase={editingPhase}
+          project={project}
+          isOpen={!!editingPhase}
+          onClose={() => setEditingPhase(null)}
+        />
+      )}
     </div>
   );
 }

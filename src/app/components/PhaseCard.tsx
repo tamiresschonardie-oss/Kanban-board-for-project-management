@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2 } from 'lucide-react';
 import { Phase, WBSTask } from '../types';
 import { getPhaseStatusBadge, PhaseStatus } from '../utils/phaseStatusCalculator';
 import { MilestoneCard } from './MilestoneCard';
@@ -13,6 +13,7 @@ interface PhaseCardProps {
   expandedMilestones: Set<string>;
   onToggleMilestone: (milestoneId: string) => void;
   onEditTask?: (task: any) => void;
+  onEditPhase?: () => void;
 }
 
 export function PhaseCard({
@@ -25,6 +26,7 @@ export function PhaseCard({
   expandedMilestones,
   onToggleMilestone,
   onEditTask,
+  onEditPhase,
 }: PhaseCardProps) {
   // Tasks sem marco específico
   const tasksWithoutMilestone = tasks.filter(t => !t.milestoneId);
@@ -52,7 +54,21 @@ export function PhaseCard({
                 {statusBadge.emoji} {statusBadge.label}
               </span>
             </div>
-            <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{phaseProgress}%</span>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              {onEditPhase && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onEditPhase();
+                  }}
+                  className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                  title="Editar cronograma da fase"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+              <span className="text-sm font-medium text-gray-700">{phaseProgress}%</span>
+            </div>
           </div>
           {phase.description && (
             <p className="text-sm text-gray-600 mt-1">{phase.description}</p>
