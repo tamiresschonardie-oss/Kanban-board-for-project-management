@@ -196,6 +196,7 @@ interface KanbanColumnProps {
   projects: Project[];
   onDrop: (projectId: string, newStatus: ProjectStatus) => void;
   onEdit: (project: Project) => void;
+  allTasks?: any[];
 }
 
 function KanbanColumn({
@@ -203,6 +204,7 @@ function KanbanColumn({
   projects,
   onDrop,
   onEdit,
+  allTasks = [],
 }: KanbanColumnProps) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "PROJECT",
@@ -247,9 +249,11 @@ function KanbanColumn({
 function KanbanView({
   projects,
   onEdit,
+  allTasks = [],
 }: {
   projects: Project[];
   onEdit: (p: Project) => void;
+  allTasks?: any[];
 }) {
   const { updateProject } = useProjects();
 
@@ -274,6 +278,7 @@ function KanbanView({
               projects={columnProjects}
               onDrop={handleDrop}
               onEdit={onEdit}
+              allTasks={allTasks}
             />
           );
         })}
@@ -599,6 +604,7 @@ export function TeamWorkspace() {
             <KanbanView
               projects={teamProjects}
               onEdit={handleEdit}
+              allTasks={allTasks}
             />
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
