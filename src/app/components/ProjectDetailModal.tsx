@@ -732,9 +732,9 @@ function GanttTab({ project, milestones }: { project: Project; milestones: Miles
 }
 
 function TasksKanbanTab({ project, onCreateTask }: { project: Project; onCreateTask: () => void }) {
-  // Get all tasks from all milestones
-  const allTasks =
-    project.phases?.flatMap((phase) => phase.milestones.flatMap((m) => m.tasks)) || [];
+  // Get all tasks for this project (same source as Estrutura tab)
+  const { getTasksForProject } = useTasks();
+  const allTasks = getTasksForProject(project.id);
 
   return <ProjectTasksTableView tasks={allTasks} onCreateTask={onCreateTask} />;
 }

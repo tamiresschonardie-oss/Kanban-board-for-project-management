@@ -1,0 +1,59 @@
+1️⃣ POR QUE A TASK NÃO APARECE NA ABA TAREFAS
+Problema Raiz:
+Na Etapa 3.4, implementamos a nova arquitetura onde:
+
+✅ Estrutura tab → usa getTasksForProject() do TaskContext (busca tasks por phaseId)
+❌ Tarefas tab → usa project.phases[].milestones[].tasks (array vazio pois mudamos a fonte de verdade)
+TasksKanbanTab atual (linha 737):
+
+const allTasks = project.phases?.flatMap(phase => 
+  phase.milestones.flatMap(m => m.tasks)  // ← VAZIO (não adiciona tasks aí)
+);
+Quando task é criada:
+
+// Está sendo armazenada aqui:
+TaskContext.independentTasks  // ← Task vai para independentes
+// Ou NO projeto (em milestone.tasks):
+project.phases[0].milestones[0].tasks.push(task)  // ← Etapa 3.4 mudou isso
+// Mas NOT:
+project.phases[].milestones[].tasks  // ← Vazio, pois mudou para task.phaseId
+Resultado:
+
+Estrutura mostra a task → usa getTasksForProject() ✅
+Tarefas não mostra → extrai de project.phases[].milestones[].tasks ❌
+2️⃣ QUAL SERÁ A CORREÇÃO PROPOSTA
+Solução:
+Unificar a origem dos dados em ambas abas usando getTasksForProject() do TaskContext:
+
+// ANTES (TasksKanbanTab):
+const allTasks = project.phases?.flatMap(...) || [];  // ❌ Vazio
+// DEPOIS (TasksKanbanTab):
+const { getTasksForProject } = useTasks();
+const allTasks = getTasksForProject(project.id);  // ✅ Mesma fonte da Estrutura
+Benefícios:
+
+✅ Mesma task aparece em ambas views
+✅ Sem duplicação de lógica
+✅ Mesma fonte de verdade (TaskContext)
+✅ Estrutura continua funcionando
+✅ Progresso automático (Etapa 3.6) continua correto
+3️⃣ QUAIS ARQUIVOS SERÃO ALTERADOS
+Arquivo	Mudança	Detalhe
+src/app/components/ProjectDetailModal.tsx	+import + refactor TasksKanbanTab	Usar getTasksForProject() em vez de extrair de phases
+Mudança resumida:
+
+// Em ProjectDetailModal.tsx, função TasksKanbanTab:
+function TasksKanbanTab({ project, onCreateTask }: { project: Project; onCreateTask: () => void }) {
+  const { getTasksForProject } = useTasks();  // +import
+  const allTasks = getTasksForProject(project.id);  // +mudança
+  
+  return <ProjectTasksTableView tasks={allTasks} onCreateTask={onCreateTask} />;
+}
+✅ GARANTIAS
+✅ Não quebra Estrutura (ela já usa getTasksForProject())
+✅ Não cria nova entidade de task
+✅ Usa mesma fonte de dados (TaskContext)
+✅ Progresso automático continua correto (mesmas tasks)
+✅ Kanban mostra tasks organizadas por status
+Posso implementar?
+
