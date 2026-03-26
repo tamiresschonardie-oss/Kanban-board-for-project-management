@@ -21,6 +21,10 @@ export interface BarPosition {
 function getPhaseDateRange(phase: Phase): { startDate?: string; endDate?: string } {
   // Prioridade 1: Datas planejadas (novos campos)
   if (phase.plannedStartDate && phase.plannedEndDate) {
+    console.log(`[getPhaseDateRange] Fase "${phase.name}" usando planned:`, {
+      plannedStartDate: phase.plannedStartDate,
+      plannedEndDate: phase.plannedEndDate,
+    });
     return {
       startDate: phase.plannedStartDate,
       endDate: phase.plannedEndDate,
@@ -29,6 +33,10 @@ function getPhaseDateRange(phase: Phase): { startDate?: string; endDate?: string
 
   // Prioridade 2: Datas existentes da fase
   if (phase.startDate && phase.endDate) {
+    console.log(`[getPhaseDateRange] Fase "${phase.name}" usando startDate/endDate:`, {
+      startDate: phase.startDate,
+      endDate: phase.endDate,
+    });
     return {
       startDate: phase.startDate,
       endDate: phase.endDate,
@@ -41,11 +49,16 @@ function getPhaseDateRange(phase: Phase): { startDate?: string; endDate?: string
     .flatMap(m => [m.startDate!, m.endDate!]) || [];
 
   if (milestoneDates.length === 0) {
+    console.log(`[getPhaseDateRange] Fase "${phase.name}" sem datas`);
     return {};
   }
 
   // Encontre a data mínima e máxima
   const sorted = milestoneDates.sort();
+  console.log(`[getPhaseDateRange] Fase "${phase.name}" usando milestone fallback:`, {
+    startDate: sorted[0],
+    endDate: sorted[sorted.length - 1],
+  });
   return {
     startDate: sorted[0],
     endDate: sorted[sorted.length - 1],

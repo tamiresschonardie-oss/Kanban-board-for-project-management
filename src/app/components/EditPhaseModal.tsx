@@ -35,6 +35,14 @@ export function EditPhaseModal({ phase, project, isOpen, onClose }: EditPhaseMod
         : p
     );
 
+    console.log('[EditPhaseModal] Salvando fase:', {
+      phaseId: phase.id,
+      plannedStartDate: formData.plannedStartDate,
+      plannedEndDate: formData.plannedEndDate,
+      actualEndDate: formData.actualEndDate,
+      updatedPhases: updatedPhases.find(p => p.id === phase.id)
+    });
+
     updateProject(project.id, { phases: updatedPhases });
     onClose();
   };

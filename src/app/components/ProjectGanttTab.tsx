@@ -28,6 +28,18 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
     );
   }
 
+  console.log('[ProjectGanttTab] Recebido:', {
+    projectId: project.id,
+    phases: project.phases?.map(p => ({
+      id: p.id,
+      name: p.name,
+      plannedStartDate: p.plannedStartDate,
+      plannedEndDate: p.plannedEndDate,
+      startDate: p.startDate,
+      endDate: p.endDate,
+    }))
+  });
+
   const dateRange = getProjectDateRange(project.phases);
 
   if (!dateRange) {
