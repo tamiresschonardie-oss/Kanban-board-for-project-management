@@ -1,4 +1,4 @@
-import { Clock, Layers, Check, Pause } from 'lucide-react';
+import { Clock, Layers, Check, Pause, AlertCircle } from 'lucide-react';
 import { Project } from '../types';
 import { useTasks } from '../context/TaskContext';
 import { getProjectProgress } from '../utils/progressCalculator';
@@ -11,8 +11,25 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onClick, isDragging }: ProjectCardProps) {
   const isPaused = project.isPaused;
-  const { allTasks } = useTasks();
-  const calculatedProgress = getProjectProgress(project, allTasks);
+  const { getTasksForProject } = useTasks();
+  
+  // Get all tasks for this project
+  const allProjectTasks = getTasksForProject(project.id);
+  const totalTasks = allProjectTasks.length;
+  const completedTasks = allProjectTasks.filter(t => t.status === 'done').length;
+  const inProgressTasks = allProjectTasks.filter(t => t.status === 'doing').length;
+  
+  // Calculate delayed tasks (with overdue dueDate and not done)
+  const now = new Date();
+  const delayedTasks = allProjectTasks.filter(t => {
+    if (t.status === 'done' || !t.dueDate) return false;
+    const dueDate = new Date(t.dueDate);
+    return dueDate < now;
+  }).length;
+  
+  const calculatedProgress = totalTasks > 0 
+    ? Math.round((completedTasks / totalTasks) * 100)
+    : 0;
   
   return (
     <div
@@ -96,10 +113,27 @@ export function ProjectCard({ project, onClick, isDragging }: ProjectCardProps) 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-gray-600 text-sm">
             <Layers className="w-4 h-4" />
-            <span>{project.tasksCompleted}/{project.tasksTotal}</span>
+            <span>{completedTasks}/{totalTasks}</span>
           </div>
           <span className="font-semibold text-gray-900">{calculatedProgress}%</span>
         </div>
+
+        {/* Task Status Summary */}
+        {totalTasks > 0 && (
+          <div className="flex items-center gap-2 pt-2 text-xs">
+            {inProgressTasks > 0 && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                ⏳ {inProgressTasks}
+              </span>
+            )}
+            {delayedTasks > 0 && (
+              <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {delayedTasks}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Tags and Deadline */}
         <div className="flex items-center gap-2 pt-1">

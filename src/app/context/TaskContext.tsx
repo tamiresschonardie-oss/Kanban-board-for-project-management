@@ -14,6 +14,9 @@ interface TaskContextType {
   stopTimeTracking: (taskId: string) => void;
   getTaskById: (taskId: string) => EnrichedTask | undefined;
   getTasksForProject: (projectId: string) => WBSTask[];
+  getTasksForPhase: (projectId: string, phaseId: string) => WBSTask[];
+  getTasksForMilestone: (projectId: string, phaseId: string, milestoneId: string) => WBSTask[];
+  reorderTasksInGroup: (projectId: string, phaseId: string, milestoneId: string | undefined, taskIds: string[]) => void;
 }
 
 export interface EnrichedTask extends WBSTask {
@@ -265,6 +268,25 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return projectTasks;
   };
 
+  const getTasksForPhase = (projectId: string, phaseId: string): WBSTask[] => {
+    return getTasksForProject(projectId)
+      .filter(task => task.phaseId === phaseId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  };
+
+  const getTasksForMilestone = (projectId: string, phaseId: string, milestoneId: string): WBSTask[] => {
+    return getTasksForProject(projectId)
+      .filter(task => task.phaseId === phaseId && task.milestoneId === milestoneId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  };
+
+  const reorderTasksInGroup = (projectId: string, phaseId: string, milestoneId: string | undefined, taskIds: string[]) => {
+    // Normalizar orders: sequência contínua 0,1,2,3...
+    taskIds.forEach((taskId, index) => {
+      updateTask(taskId, { order: index });
+    });
+  };
+
   return (
     <TaskContext.Provider
       value={{
@@ -279,6 +301,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         stopTimeTracking,
         getTaskById,
         getTasksForProject,
+        getTasksForPhase,
+        getTasksForMilestone,
+        reorderTasksInGroup,
       }}
     >
       {children}

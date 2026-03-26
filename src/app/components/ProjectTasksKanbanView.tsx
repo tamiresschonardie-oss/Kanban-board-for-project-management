@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Edit2 } from 'lucide-react';
 import { Project, WBSTask } from '../types';
+import { useTasks } from '../context/TaskContext';
 import { getPhaseStatus, getPhaseStatusBadge } from '../utils/phaseStatusCalculator';
 
 interface ProjectTasksKanbanViewProps {
   project: Project;
-  allTasks: WBSTask[];
   onEditTask?: (task: WBSTask) => void;
   onUpdateTask?: (taskId: string, updates: Partial<WBSTask>) => void;
 }
@@ -46,10 +46,10 @@ const getPriorityBadge = (priority?: string) => {
 
 export function ProjectTasksKanbanView({
   project,
-  allTasks,
   onEditTask,
   onUpdateTask,
 }: ProjectTasksKanbanViewProps) {
+  const { getTasksForProject, allTasks, updateTask } = useTasks();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
 
@@ -81,8 +81,11 @@ export function ProjectTasksKanbanView({
     const taskId = e.dataTransfer.getData('taskId');
     const sourcePhaseId = e.dataTransfer.getData('sourcePhaseId');
 
-    if (sourcePhaseId !== targetPhaseId && onUpdateTask) {
-      onUpdateTask(taskId, { phaseId: targetPhaseId });
+    if (sourcePhaseId !== targetPhaseId) {
+      updateTask(taskId, { phaseId: targetPhaseId });
+      if (onUpdateTask) {
+        onUpdateTask(taskId, { phaseId: targetPhaseId });
+      }
     }
 
     setDraggedTaskId(null);
@@ -109,7 +112,8 @@ export function ProjectTasksKanbanView({
     <div className="overflow-x-auto overflow-y-hidden pb-6 h-full">
       <div className="flex gap-6 min-w-min h-full">
         {project.phases.map((phase) => {
-          const phaseTasks = allTasks.filter(task => task.phaseId === phase.id);
+          const projectTasks = getTasksForProject(project.id);
+          const phaseTasks = projectTasks.filter(task => task.phaseId === phase.id);
           const completedTasks = phaseTasks.filter(t => t.status === 'done').length;
           const phaseProgress = phaseTasks.length > 0 ? Math.round((completedTasks / phaseTasks.length) * 100) : 0;
           const phaseStatus = getPhaseStatus(phase.id, allTasks);

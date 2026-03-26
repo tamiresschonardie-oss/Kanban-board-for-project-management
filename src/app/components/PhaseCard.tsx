@@ -50,9 +50,6 @@ export function PhaseCard({
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2 min-w-0">
               <h3 className="font-semibold text-gray-900">{phase.name}</h3>
-              <span className="text-xs font-medium whitespace-nowrap">
-                {statusBadge.emoji} {statusBadge.label}
-              </span>
             </div>
             <div className="flex items-center gap-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
               {onEditPhase && (
@@ -68,8 +65,19 @@ export function PhaseCard({
                   <Edit2 className="w-4 h-4" />
                 </button>
               )}
-              <span className="text-sm font-medium text-gray-700">{phaseProgress}%</span>
             </div>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded font-medium">
+              {tasks.length} tarefas
+            </span>
+            <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-medium">
+              {tasks.filter(t => t.status === 'done').length}✓
+            </span>
+            <span className="text-xs font-medium whitespace-nowrap">
+              {statusBadge.emoji} {statusBadge.label}
+            </span>
+            <span className="text-sm font-medium text-gray-700 ml-auto">{phaseProgress}%</span>
           </div>
           {phase.description && (
             <p className="text-sm text-gray-600 mt-1">{phase.description}</p>
@@ -81,9 +89,6 @@ export function PhaseCard({
                 style={{ width: `${phaseProgress}%` }}
               />
             </div>
-            <p className="text-xs text-gray-500">
-              {phase.milestones.length} marco{phase.milestones.length !== 1 ? 's' : ''}
-            </p>
           </div>
         </div>
       </div>

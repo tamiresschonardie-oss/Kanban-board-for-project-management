@@ -15,7 +15,7 @@ interface ProjectPhasesTabProps {
 
 export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps) {
   const { getEAPTemplate } = useEAP();
-  const { getTasksForProject, allTasks } = useTasks();
+  const { getTasksForPhase, allTasks } = useTasks();
   
   const eapName = useMemo(() => {
     if (!project.eapId) return null;
@@ -82,9 +82,7 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
 
       <div className="space-y-3">
         {project.phases.map((phase) => {
-          const phaseTasks = getTasksForProject(project.id).filter(
-            task => task.phaseId === phase.id
-          );
+          const phaseTasks = getTasksForPhase(project.id, phase.id);
           const phaseProgress = getPhaseProgress(phase.id, allTasks);
           const phaseStatus = getPhaseStatus(phase.id, allTasks);
           return (
