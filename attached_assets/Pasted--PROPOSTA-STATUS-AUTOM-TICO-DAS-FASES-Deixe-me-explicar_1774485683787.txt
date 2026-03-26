@@ -1,0 +1,124 @@
+📋 PROPOSTA: STATUS AUTOMÁTICO DAS FASES
+Deixe-me explicar a abordagem:
+
+1️⃣ COMO SERÁ CALCULADO O STATUS DA FASE
+Lógica de Cálculo (Ordem Importa):
+function getPhaseStatus(phaseId: string, allTasks: WBSTask[]): string {
+  const phaseTasks = allTasks.filter(t => t.phaseId === phaseId);
+  // 1. Sem tarefas
+  if (phaseTasks.length === 0) return 'não-iniciado';
+  // 2. Verificar se há tarefa vencida não concluída (prioridade máxima)
+  const now = new Date();
+  const hasExpiredTask = phaseTasks.some(t => 
+    t.dueDate && 
+    new Date(t.dueDate) < now && 
+    t.status !== 'done'
+  );
+  if (hasExpiredTask) return 'em-risco';
+  // 3. Todas tarefas completas
+  const allDone = phaseTasks.every(t => t.status === 'done');
+  if (allDone) return 'concluído';
+  // 4. Pelo menos uma em andamento
+  const hasInProgress = phaseTasks.some(t => t.status === 'doing');
+  if (hasInProgress) return 'em-andamento';
+  // 5. Padrão: não iniciado (todas estão em 'todo')
+  return 'não-iniciado';
+}
+Mapeamento de Status:
+Status	Badge	Cor	Significado
+não-iniciado	⭕	Gray	Sem tarefas ou todas em "todo"
+em-andamento	🔵	Blue	Pelo menos uma "doing"
+concluído	✅	Green	Todas "done"
+em-risco	⚠️	Red	Tem tarefa vencida não concluída
+2️⃣ ONDE ESSA LÓGICA FICARÁ
+Arquivo Novo:
+src/app/utils/phaseStatusCalculator.ts
+├─ getPhaseStatus(phaseId, allTasks)
+├─ getPhaseStatusBadge(status)
+└─ (futuro) getPhaseStatusColor(status)
+Localização: Mesmo padrão do progressCalculator.ts
+
+Vantagem: Reutilizável em qualquer lugar que precise do status
+
+3️⃣ QUAIS COMPONENTES SERÃO ALTERADOS
+Componente	Mudança	Detalhe
+src/app/utils/phaseStatusCalculator.ts	✨ NOVO	Funções de cálculo
+src/app/components/ProjectPhasesTab.tsx	+import + exibir	Mostrar status no header da fase
+src/app/components/PhaseCard.tsx	+status badge	Badge com status da fase
+src/app/components/ProjectTasksKanbanView.tsx	+status badge	Badge com status na coluna
+4️⃣ COMO GARANTIR QUE NÃO QUEBRA O FLUXO ATUAL
+Garantias Arquiteturais:
+// 1. NÃO altera dados
+function getPhaseStatus(...): string {
+  // Apenas lê allTasks
+  // Não modifica nada
+  // Retorna string (status)
+}
+// 2. NÃO persiste
+// Status é calculado em renderização
+// Não salva em localStorage
+// Não muda modelagem existente
+// 3. Mesma fonte de dados
+const allTasks = getTasksForProject(projectId);
+const status = getPhaseStatus(phaseId, allTasks);
+// allTasks é from TaskContext (mesma em Estrutura e Tarefas)
+// 4. Atualização automática
+// Quando task muda status → TaskContext atualiza
+// → Componente re-renderiza
+// → getPhaseStatus() recalcula
+// → UI mostra novo status
+Exemplos de Sincronização:
+Cenário 1: User completa última task
+├─ updateTask(taskId, { status: 'done' })
+├─ TaskContext recalcula allTasks
+├─ PhaseCard re-renderiza
+├─ getPhaseStatus() retorna 'concluído'
+└─ Badge muda de 🔵 (em-andamento) → ✅ (concluído) ✅
+Cenário 2: Tarefa vence sem ser completa
+├─ Tempo passa (não há ação)
+├─ User abre projeto
+├─ Componente re-renderiza
+├─ getPhaseStatus() detecta prazo vencido
+└─ Badge muda para ⚠️ (em-risco) ✅
+Cenário 3: Task movida de fase (drag & drop)
+├─ updateTask(taskId, { phaseId: 'phase-2' })
+├─ TaskContext recalcula allTasks
+├─ Ambas fases (source + dest) re-renderizam
+├─ getPhaseStatus() recalcula para ambas
+└─ Badges das 2 fases atualizam ✅
+📊 VISUALIZAÇÃO ESPERADA
+Em ProjectPhasesTab (Estrutura):
+┌─ Fase 1: Análise ⭕ (não-iniciado) ────────┐
+│ 4 marcos                                    │
+└─────────────────────────────────────────────┘
+┌─ Fase 2: Desenvolvimento 🔵 (em-andamento) ─┐
+│ 3 marcos                                    │
+└─────────────────────────────────────────────┘
+┌─ Fase 3: Testes ✅ (concluído) ─────────────┐
+│ 2 marcos                                    │
+└─────────────────────────────────────────────┘
+Em ProjectTasksKanbanView (Kanban):
+Fase 1: Análise ⭕                Fase 2: Dev 🔵
+4 tasks | 0 de 4 completas        2 tasks | 1 de 2 completas
+[░░░░░░]                          [██░░░░]
+✅ GARANTIAS TÉCNICAS
+Aspecto	Garantia
+Sem persistência	Cálculo em tempo de renderização
+Sem mudança de modelagem	Usa fields existentes (status, dueDate)
+Sincronização total	Usa allTasks from TaskContext
+Atualização automática	Re-renderiza ao mudar task status
+Sem quebra	Apenas renderização, read-only
+Compatibilidade	Projetos antigos funcionam normalmente
+📊 FLUXO TÉCNICO
+TaskContext.updateTask()
+  ├─ Atualiza task status/dueDate
+  ├─ Recalcula allTasks
+  └─ Notifica subscribers
+ProjectPhasesTab / ProjectTasksKanbanView
+  ├─ Re-renderiza com novo allTasks
+  ├─ Chama getPhaseStatus(phaseId, allTasks)
+  ├─ Status calculado em tempo real
+  └─ Badge renderizada com novo status ✅
+UI Atualiza
+  └─ Status da fase reflete mudança imediatamente
+Posso implementar com essa abordagem?

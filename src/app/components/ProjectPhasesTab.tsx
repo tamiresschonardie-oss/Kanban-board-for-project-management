@@ -4,6 +4,7 @@ import { Project } from '../types';
 import { useEAP } from '../context/EAPContext';
 import { useTasks } from '../context/TaskContext';
 import { getPhaseProgress } from '../utils/progressCalculator';
+import { getPhaseStatus } from '../utils/phaseStatusCalculator';
 import { PhaseCard } from './PhaseCard';
 
 interface ProjectPhasesTabProps {
@@ -82,12 +83,14 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
             task => task.phaseId === phase.id
           );
           const phaseProgress = getPhaseProgress(phase.id, allTasks);
+          const phaseStatus = getPhaseStatus(phase.id, allTasks);
           return (
             <PhaseCard
               key={phase.id}
               phase={phase}
               tasks={phaseTasks}
               phaseProgress={phaseProgress}
+              phaseStatus={phaseStatus}
               isExpanded={expandedPhases.has(phase.id)}
               onToggle={() => togglePhase(phase.id)}
               expandedMilestones={expandedMilestones}

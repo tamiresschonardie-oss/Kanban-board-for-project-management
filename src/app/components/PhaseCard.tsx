@@ -1,11 +1,13 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Phase, WBSTask } from '../types';
+import { getPhaseStatusBadge, PhaseStatus } from '../utils/phaseStatusCalculator';
 import { MilestoneCard } from './MilestoneCard';
 
 interface PhaseCardProps {
   phase: Phase;
   tasks: WBSTask[];
   phaseProgress?: number;
+  phaseStatus?: PhaseStatus;
   isExpanded: boolean;
   onToggle: () => void;
   expandedMilestones: Set<string>;
@@ -17,6 +19,7 @@ export function PhaseCard({
   phase,
   tasks,
   phaseProgress = 0,
+  phaseStatus = 'não-iniciado',
   isExpanded,
   onToggle,
   expandedMilestones,
@@ -25,6 +28,8 @@ export function PhaseCard({
 }: PhaseCardProps) {
   // Tasks sem marco específico
   const tasksWithoutMilestone = tasks.filter(t => !t.milestoneId);
+  const statusBadge = getPhaseStatusBadge(phaseStatus);
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <button
@@ -40,8 +45,13 @@ export function PhaseCard({
         </div>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-semibold text-gray-900">{phase.name}</h3>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="font-semibold text-gray-900">{phase.name}</h3>
+              <span className="text-xs font-medium whitespace-nowrap">
+                {statusBadge.emoji} {statusBadge.label}
+              </span>
+            </div>
             <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{phaseProgress}%</span>
           </div>
           {phase.description && (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Edit2 } from 'lucide-react';
 import { Project, WBSTask } from '../types';
+import { getPhaseStatus, getPhaseStatusBadge } from '../utils/phaseStatusCalculator';
 
 interface ProjectTasksKanbanViewProps {
   project: Project;
@@ -111,6 +112,8 @@ export function ProjectTasksKanbanView({
           const phaseTasks = allTasks.filter(task => task.phaseId === phase.id);
           const completedTasks = phaseTasks.filter(t => t.status === 'done').length;
           const phaseProgress = phaseTasks.length > 0 ? Math.round((completedTasks / phaseTasks.length) * 100) : 0;
+          const phaseStatus = getPhaseStatus(phase.id, allTasks);
+          const statusBadge = getPhaseStatusBadge(phaseStatus);
 
           return (
             <div
@@ -129,9 +132,14 @@ export function ProjectTasksKanbanView({
               <div className="bg-white border-b border-gray-200 p-4 sticky top-0 z-10 flex-shrink-0">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="font-semibold text-gray-900">{phase.name}</h3>
-                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                    {phaseTasks.length}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      {phaseTasks.length}
+                    </span>
+                    <span className="text-xs font-medium whitespace-nowrap">
+                      {statusBadge.emoji}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-600 mb-3">
                   {completedTasks} de {phaseTasks.length} completas
