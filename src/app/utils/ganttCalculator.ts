@@ -12,20 +12,57 @@ export interface BarPosition {
 }
 
 /**
- * Calcula o intervalo de datas do projeto baseado nas fases
+ * Extrai as datas de uma fase
+ * Primeiro tenta usar startDate/endDate da fase
+ * Se não tiver, calcula a partir dos milestones
+ */
+function getPhaseDateRange(phase: Phase): { startDate?: string; endDate?: string } {
+  // Se a fase tem datas, use-as
+  if (phase.startDate && phase.endDate) {
+    return {
+      startDate: phase.startDate,
+      endDate: phase.endDate,
+    };
+  }
+
+  // Senão, calcule a partir dos milestones
+  const milestoneDates = phase.milestones
+    ?.filter(m => m.startDate && m.endDate)
+    .flatMap(m => [m.startDate!, m.endDate!]) || [];
+
+  if (milestoneDates.length === 0) {
+    return {};
+  }
+
+  // Encontre a data mínima e máxima
+  const sorted = milestoneDates.sort();
+  return {
+    startDate: sorted[0],
+    endDate: sorted[sorted.length - 1],
+  };
+}
+
+/**
+ * Calcula o intervalo de datas do projeto baseado nas fases e seus milestones
  * @param phases Fases do projeto
  * @returns DateRange ou null se nenhuma fase possui datas
  */
 export function getProjectDateRange(phases: Phase[]): DateRange | null {
-  const phasesWithDates = phases.filter(p => p.startDate && p.endDate);
+  // Extrair datas de cada fase (de startDate/endDate ou dos milestones)
+  const phasesWithDates = phases
+    .map(p => ({
+      ...p,
+      ...getPhaseDateRange(p),
+    }))
+    .filter(p => p.startDate && p.endDate);
 
   if (phasesWithDates.length === 0) {
     return null;
   }
 
   const allDates = phasesWithDates.flatMap(p => [
-    new Date(p.startDate),
-    new Date(p.endDate),
+    new Date(p.startDate!),
+    new Date(p.endDate!),
   ]);
 
   const projectStart = new Date(Math.min(...allDates.map(d => d.getTime())));
@@ -41,6 +78,13 @@ export function getProjectDateRange(phases: Phase[]): DateRange | null {
 }
 
 /**
+ * Obtém o startDate e endDate de uma fase (da própria fase ou dos milestones)
+ */
+export function getPhaseDisplayDates(phase: Phase): { startDate?: string; endDate?: string } {
+  return getPhaseDateRange(phase);
+}
+
+/**
  * Calcula a posição e largura da barra de uma fase
  * @param phase Fase
  * @param projectStart Data inicial do projeto
@@ -52,12 +96,15 @@ export function getPhaseBarPosition(
   projectStart: Date,
   totalDays: number
 ): BarPosition {
-  if (!phase.startDate || !phase.endDate) {
+  // Obter datas da fase (de startDate/endDate ou dos milestones)
+  const phaseDates = getPhaseDateRange(phase);
+  
+  if (!phaseDates.startDate || !phaseDates.endDate) {
     return { left: 0, width: 0 };
   }
 
-  const phaseStart = new Date(phase.startDate);
-  const phaseEnd = new Date(phase.endDate);
+  const phaseStart = new Date(phaseDates.startDate);
+  const phaseEnd = new Date(phaseDates.endDate);
 
   // Dias desde o início do projeto
   const daysFromStart = Math.max(

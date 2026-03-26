@@ -4,6 +4,7 @@ import { getPhaseStatus, getPhaseStatusBadge } from '../utils/phaseStatusCalcula
 import {
   getProjectDateRange,
   getPhaseBarPosition,
+  getPhaseDisplayDates,
   formatDate,
   calculateDuration,
 } from '../utils/ganttCalculator';
@@ -105,7 +106,8 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
             }
 
             const position = getPhaseBarPosition(phase, projectStart, totalDays);
-            const duration = calculateDuration(phase.startDate, phase.endDate);
+            const phaseDates = getPhaseDisplayDates(phase);
+            const duration = calculateDuration(phaseDates.startDate, phaseDates.endDate);
 
             // Determinar cor da barra baseada no status
             const barColor =
@@ -123,7 +125,7 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
                 <div className="w-48 flex-shrink-0">
                   <div className="font-medium text-sm text-gray-900">{phase.name}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {formatDate(phase.startDate)} → {formatDate(phase.endDate)} ({duration}d)
+                    {formatDate(phaseDates.startDate)} → {formatDate(phaseDates.endDate)} ({duration}d)
                   </div>
                 </div>
 
