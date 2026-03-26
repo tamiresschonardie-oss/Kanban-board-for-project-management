@@ -131,6 +131,7 @@ export interface WBSTask {
   projectId?: string;
   phaseId?: string;
   milestoneId?: string;
+  completionDate?: string; // Data real de conclusão da tarefa
 }
 
 export interface Milestone {
@@ -154,6 +155,9 @@ export interface Phase {
   milestones: Milestone[];
   startDate?: string; // Data inicial da fase (opcional)
   endDate?: string;   // Data final da fase (opcional)
+  plannedStartDate?: string; // Data planejada de início (PMO edita)
+  plannedEndDate?: string;   // Data planejada de conclusão (PMO edita)
+  actualEndDate?: string;    // Data real de conclusão da fase
 }
 
 export interface EAP {

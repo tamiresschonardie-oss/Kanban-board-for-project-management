@@ -13,11 +13,21 @@ export interface BarPosition {
 
 /**
  * Extrai as datas de uma fase
- * Primeiro tenta usar startDate/endDate da fase
- * Se não tiver, calcula a partir dos milestones
+ * Prioridade:
+ * 1. plannedStartDate/plannedEndDate (se disponíveis, PMO usou)
+ * 2. startDate/endDate (dados antigos ou existentes)
+ * 3. Calcula a partir dos milestones (fallback)
  */
 function getPhaseDateRange(phase: Phase): { startDate?: string; endDate?: string } {
-  // Se a fase tem datas, use-as
+  // Prioridade 1: Datas planejadas (novos campos)
+  if (phase.plannedStartDate && phase.plannedEndDate) {
+    return {
+      startDate: phase.plannedStartDate,
+      endDate: phase.plannedEndDate,
+    };
+  }
+
+  // Prioridade 2: Datas existentes da fase
   if (phase.startDate && phase.endDate) {
     return {
       startDate: phase.startDate,
@@ -25,7 +35,7 @@ function getPhaseDateRange(phase: Phase): { startDate?: string; endDate?: string
     };
   }
 
-  // Senão, calcule a partir dos milestones
+  // Prioridade 3: Calcule a partir dos milestones
   const milestoneDates = phase.milestones
     ?.filter(m => m.startDate && m.endDate)
     .flatMap(m => [m.startDate!, m.endDate!]) || [];
