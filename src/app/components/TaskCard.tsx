@@ -1,4 +1,5 @@
-import { ChevronRight, Edit2 } from 'lucide-react';
+import { ChevronRight, Edit2, GripVertical } from 'lucide-react';
+import { useDrag } from 'react-dnd';
 import { WBSTask } from '../types';
 import { TaskOrderControls } from './TaskOrderControls';
 
@@ -10,6 +11,7 @@ interface TaskCardProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   showOrderControls?: boolean;
+  isDraggable?: boolean;
 }
 
 const getTaskStatusLabel = (status: string): string => {
@@ -47,11 +49,36 @@ export function TaskCard({
   onMoveUp,
   onMoveDown,
   showOrderControls = false,
+  isDraggable = false,
 }: TaskCardProps) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'REORDER_TASK',
+    item: { taskId: task.id },
+    collect: (monitor) => ({
+      isDragging: isDraggable ? monitor.isDragging() : false,
+    }),
+  }), [task.id, isDraggable]);
+
+  const dragRef = (el: HTMLDivElement | null) => {
+    if (isDraggable && drag) {
+      drag(el);
+    }
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded p-3 text-sm hover:shadow-md transition-shadow">
+    <div
+      ref={dragRef}
+      className={`bg-white border border-gray-200 rounded p-3 text-sm hover:shadow-md transition-shadow ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-start gap-2 flex-1 min-w-0">
+          {isDraggable && (
+            <div className="text-gray-400 hover:text-gray-600 flex-shrink-0 cursor-grab active:cursor-grabbing pt-0.5">
+              <GripVertical className="w-4 h-4" />
+            </div>
+          )}
           <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${getTaskStatusColor(task.status)}`}>
             {getTaskStatusLabel(task.status)}
           </span>

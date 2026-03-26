@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Project, Phase } from '../types';
 import { useEAP } from '../context/EAPContext';
 import { useTasks } from '../context/TaskContext';
@@ -70,49 +72,51 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
   }
 
   return (
-    <div className="space-y-6">
-      {eapName && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700 font-medium">
-            <span className="opacity-75">Origem: </span>
-            {eapName}
-          </p>
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-6">
+        {eapName && (
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-700 font-medium">
+              <span className="opacity-75">Origem: </span>
+              {eapName}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {project.phases.map((phase) => {
+            const phaseTasks = getTasksForPhase(project.id, phase.id);
+            const phaseProgress = getPhaseProgress(phase.id, allTasks);
+            const phaseStatus = getPhaseStatus(phase.id, allTasks);
+            return (
+              <PhaseCard
+                key={phase.id}
+                projectId={project.id}
+                phase={phase}
+                tasks={phaseTasks}
+                phaseProgress={phaseProgress}
+                phaseStatus={phaseStatus}
+                isExpanded={expandedPhases.has(phase.id)}
+                onToggle={() => togglePhase(phase.id)}
+                expandedMilestones={expandedMilestones}
+                onToggleMilestone={toggleMilestone}
+                onEditTask={onEditTask}
+                onEditPhase={() => setEditingPhase(phase)}
+              />
+            );
+          })}
         </div>
-      )}
 
-      <div className="space-y-3">
-        {project.phases.map((phase) => {
-          const phaseTasks = getTasksForPhase(project.id, phase.id);
-          const phaseProgress = getPhaseProgress(phase.id, allTasks);
-          const phaseStatus = getPhaseStatus(phase.id, allTasks);
-          return (
-            <PhaseCard
-              key={phase.id}
-              projectId={project.id}
-              phase={phase}
-              tasks={phaseTasks}
-              phaseProgress={phaseProgress}
-              phaseStatus={phaseStatus}
-              isExpanded={expandedPhases.has(phase.id)}
-              onToggle={() => togglePhase(phase.id)}
-              expandedMilestones={expandedMilestones}
-              onToggleMilestone={toggleMilestone}
-              onEditTask={onEditTask}
-              onEditPhase={() => setEditingPhase(phase)}
-            />
-          );
-        })}
+        {/* Edit Phase Modal */}
+        {editingPhase && (
+          <EditPhaseModal
+            phase={editingPhase}
+            project={project}
+            isOpen={!!editingPhase}
+            onClose={() => setEditingPhase(null)}
+          />
+        )}
       </div>
-
-      {/* Edit Phase Modal */}
-      {editingPhase && (
-        <EditPhaseModal
-          phase={editingPhase}
-          project={project}
-          isOpen={!!editingPhase}
-          onClose={() => setEditingPhase(null)}
-        />
-      )}
-    </div>
+    </DndProvider>
   );
 }
