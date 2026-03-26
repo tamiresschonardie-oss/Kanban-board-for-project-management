@@ -7,7 +7,7 @@ import { useTasks } from '../context/TaskContext';
 import { getProjectProgress } from '../utils/progressCalculator';
 import { ProjectModal } from './ProjectModal';
 import { TaskModal } from './TaskModal';
-import { ProjectTasksTableView } from './ProjectTasksTableView';
+import { ProjectTasksKanbanView } from './ProjectTasksKanbanView';
 import { ProjectPhasesTab } from './ProjectPhasesTab';
 
 interface ProjectDetailModalProps {
@@ -188,7 +188,11 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
             </TabsContent>
 
             <TabsContent value="tasks">
-              <TasksKanbanTab project={project} onCreateTask={() => setIsCreatingTask(true)} />
+              <TasksKanbanTab 
+                project={project} 
+                onCreateTask={() => setIsCreatingTask(true)}
+                onEditTask={setEditingTask}
+              />
             </TabsContent>
           </Tabs>
         </div>
@@ -731,11 +735,18 @@ function GanttTab({ project, milestones }: { project: Project; milestones: Miles
   );
 }
 
-function TasksKanbanTab({ project, onCreateTask }: { project: Project; onCreateTask: () => void }) {
-  // Get all tasks for this project (same source as Estrutura tab)
+function TasksKanbanTab({ 
+  project, 
+  onCreateTask,
+  onEditTask,
+}: { 
+  project: Project; 
+  onCreateTask: () => void;
+  onEditTask?: (task: WBSTask) => void;
+}) {
   const { getTasksForProject } = useTasks();
   const allTasks = getTasksForProject(project.id);
 
-  return <ProjectTasksTableView tasks={allTasks} onCreateTask={onCreateTask} />;
+  return <ProjectTasksKanbanView project={project} allTasks={allTasks} onEditTask={onEditTask} />;
 }
 
