@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { CheckCircle2, AlertCircle, Calendar, ArrowRight, Plus, FolderKanban, Bell, Filter, X, CheckSquare } from 'lucide-react';
 import { useProjects } from '../context/ProjectContext';
 import { useAdmin } from '../context/AdminContext';
+import { useLoadTestData } from '../hooks/useLoadTestData';
 import { WBSTask } from '../types';
 import { TaskDetailPanel } from '../components/TaskDetailPanel';
 import { TaskModal } from '../components/TaskModal';
@@ -11,6 +12,7 @@ export function Home() {
   const navigate = useNavigate();
   const { projects } = useProjects();
   const { teams, notifications, markNotificationAsRead } = useAdmin();
+  const { loadTestData } = useLoadTestData();
   
   const [selectedTask, setSelectedTask] = useState<(WBSTask & { projectName: string; phaseName: string; milestoneName: string }) | null>(null);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
@@ -465,6 +467,15 @@ export function Home() {
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
       />
+
+      {/* Test Data Button - Temporary (can be removed) */}
+      <button
+        onClick={loadTestData}
+        className="fixed bottom-4 right-4 bg-yellow-400 hover:bg-yellow-500 text-black px-3 py-2 rounded text-xs font-medium shadow-lg transition-colors z-50"
+        title="Carrega projeto de teste com Gantt e tasks para validação"
+      >
+        🧪 Carregar Dados Teste
+      </button>
     </div>
   );
 }
