@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router";
 import {
   Tabs,
@@ -296,6 +296,16 @@ export function TeamWorkspace() {
     Project | undefined
   >();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Sincronizar selectedProject quando projects no contexto mudar
+  useEffect(() => {
+    if (selectedProject && isModalOpen) {
+      const updatedProject = projects.find(p => p.id === selectedProject.id);
+      if (updatedProject) {
+        setSelectedProject(updatedProject);
+      }
+    }
+  }, [projects, selectedProject?.id, isModalOpen]);
 
   // Filters
   const [filters, setFilters] = useState({

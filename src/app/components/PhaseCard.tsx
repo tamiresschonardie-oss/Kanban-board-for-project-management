@@ -34,9 +34,9 @@ export function PhaseCard({
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
+      <div
         onClick={onToggle}
-        className="w-full flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors text-left"
+        className="w-full flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors text-left cursor-pointer"
       >
         <div className="mt-0.5 text-gray-400 flex-shrink-0">
           {isExpanded ? (
@@ -54,11 +54,12 @@ export function PhaseCard({
                 {statusBadge.emoji} {statusBadge.label}
               </span>
             </div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
+            <div className="flex items-center gap-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
               {onEditPhase && (
                 <button
                   onClick={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     onEditPhase();
                   }}
                   className="text-gray-400 hover:text-blue-600 transition-colors p-1"
@@ -85,7 +86,7 @@ export function PhaseCard({
             </p>
           </div>
         </div>
-      </button>
+      </div>
 
       {isExpanded && (
         <div className="bg-gray-50 border-t border-gray-200 p-4 space-y-2">

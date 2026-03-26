@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ProjectCard } from '../components/ProjectCard';
@@ -78,6 +78,16 @@ function KanbanContent() {
   const [selectedProject, setSelectedProject] = useState<Project | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Sincronizar selectedProject quando projects no contexto mudar
+  useEffect(() => {
+    if (selectedProject && isModalOpen) {
+      const updatedProject = projects.find(p => p.id === selectedProject.id);
+      if (updatedProject) {
+        setSelectedProject(updatedProject);
+      }
+    }
+  }, [projects, selectedProject?.id, isModalOpen]);
+
   // Filter projects
   const filteredProjects = projects.filter((project) => {
     if (filters.quadro !== 'Todos' && project.quadro !== filters.quadro) return false;
@@ -120,7 +130,9 @@ function KanbanContent() {
           isOpen={isModalOpen}
           onClose={() => {
             setIsModalOpen(false);
-            setSelectedProject(undefined);
+            // Recarregar a versão atualizada do projeto antes de fechar
+            const updatedProject = projects.find(p => p.id === selectedProject.id);
+            setSelectedProject(updatedProject);
           }}
         />
       )}
