@@ -58,7 +58,7 @@ export const testProjectData: Project = {
   responsible: 'Teste',
   client: 'Interno',
   group: 'Testes',
-  status: 'construction',
+  status: 'backlog',
   situation: 'ativo',
   purpose: 'inovacao',
   eapId: 'test-eap-gantt',
@@ -70,6 +70,8 @@ export const testProjectData: Project = {
   logoColor: '#3b82f6',
   coverImage: '',
   isPaused: false,
+  quadro: 'Backlog',
+  tags: ['Teste', 'Gantt'],
   phases: [
     {
       id: 'test-phase-1',

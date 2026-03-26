@@ -203,13 +203,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Sincroniza projects com localStorage sempre que state muda
   useEffect(() => {
-    // DEBUG: Verificar o que está sendo salvo no localStorage
-    const testProj = projects.find(p => p.id === 'test-project-gantt');
-    if (testProj) {
-      console.log('[DEBUG] ProjectContext.useEffect - salvando no localStorage, teste project phases:', 
-        testProj.phases?.map(p => ({ id: p.id, name: p.name, startDate: p.startDate, endDate: p.endDate }))
-      );
-    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
     console.log('[ProjectContext] Salvando', projects.length, 'projetos no localStorage');
   }, [projects]);
@@ -223,11 +216,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const addProject = (project: Project) => {
-    // DEBUG: Verificar o que está sendo salvo
     if (project.id === 'test-project-gantt') {
-      console.log('[DEBUG] ProjectContext.addProject - salvando projeto com phases:', 
-        project.phases?.map(p => ({ id: p.id, name: p.name, startDate: p.startDate, endDate: p.endDate }))
-      );
+      console.log('%c ========== TESTE PROJECT ADICIONADO ========== ', 'background: #22c55e; color: white; font-size: 14px; font-weight: bold; padding: 10px;');
+      console.log('%c Projeto:', 'color: #22c55e; font-weight: bold;', project.name);
+      console.log('%c Total de Fases:', 'color: #22c55e; font-weight: bold;', project.phases?.length || 0);
+      console.log('%c Fases com Datas:', 'color: #22c55e; font-weight: bold;', project.phases?.filter(p => p.startDate && p.endDate).length || 0);
+      console.table(project.phases?.map(p => ({ id: p.id, name: p.name, startDate: p.startDate, endDate: p.endDate })));
     }
     setProjects(prev => [...prev, project]);
   };
