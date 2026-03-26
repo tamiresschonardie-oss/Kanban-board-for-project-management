@@ -1,0 +1,73 @@
+A implementação atual da aba "Tarefas" dentro do card do projeto ainda não está correta e precisa ser ajustada.
+
+Problemas identificados:
+1. O drag and drop entre fases não está funcionando corretamente
+2. A visualização do kanban está pobre visualmente e pouco detalhada
+3. O layout atual parece uma adaptação simples de cards dentro de colunas, mas ainda não transmite uma experiência de kanban profissional
+4. A coluna da esquerda está quebrada/cortada visualmente e o espaçamento geral não está bom
+5. Os cards das tasks estão simples demais e sem informações suficientes para gestão visual rápida
+
+Quero refatorar a aba "Tarefas" do card do projeto para que ela tenha aparência e comportamento de um kanban interno real do projeto.
+
+Objetivo:
+Transformar a aba "Tarefas" em um board kanban interno do projeto, usando as fases da EAP como colunas, com cards mais completos, visual mais limpo e drag and drop funcional.
+
+Regras:
+- manter a aba "Estrutura" como visão hierárquica
+- manter a aba "Tarefas" como visão kanban das mesmas tasks
+- a fonte de dados continua sendo a mesma
+- não criar nova entidade
+- continuar usando TaskContext como fonte de verdade
+- a mesma task deve aparecer na Estrutura e na aba Tarefas, apenas em visualizações diferentes
+
+Ajustes visuais esperados:
+1. Cada fase da EAP deve ser uma coluna kanban real, bem definida
+2. As colunas devem ficar lado a lado com scroll horizontal suave
+3. Cada coluna deve ter:
+   - nome da fase
+   - quantidade de tasks
+   - barra ou indicador simples de progresso da fase
+4. Cada task deve aparecer em formato de card visual mais rico, contendo no mínimo:
+   - título
+   - status em badge
+   - responsável
+   - prazo, se existir
+   - prioridade, se existir
+   - marco vinculado, se existir
+5. Os cards devem ter:
+   - padding melhor
+   - borda suave
+   - sombra leve
+   - hover state
+   - cursor adequado
+6. Melhorar espaçamento interno e alinhamento geral para que pareça um board de verdade
+7. Corrigir colunas quebradas ou cortadas visualmente
+8. Corrigir altura das colunas para que o layout fique equilibrado
+
+Drag and drop:
+1. O drag and drop entre colunas precisa funcionar de fato
+2. Ao mover uma task para outra fase:
+   - atualizar o phaseId
+   - manter sincronização com a aba Estrutura
+   - manter sincronização com o progresso automático
+3. Adicionar feedback visual:
+   - coluna destacada ao receber drag
+   - card com opacidade alterada ao ser arrastado
+4. Não quebrar tasks sem milestone
+5. Não quebrar projetos antigos
+
+Melhoria de UX:
+- mostrar estado vazio melhor quando a fase não tiver tasks
+- manter leitura fácil e visual limpa
+- deixar o layout mais próximo de ferramentas modernas de gestão de projeto
+
+Antes de implementar, quero que você me explique objetivamente:
+1. por que o drag and drop atual não está funcionando
+2. qual será a correção técnica
+3. quais componentes serão ajustados
+4. como ficará o novo layout visual da aba Tarefas
+
+Importante:
+- ainda não implementar
+- quero validar a proposta primeiro
+- foco total em corrigir a aba Tarefas dentro do card do projeto
