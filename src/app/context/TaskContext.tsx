@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { WBSTask, TaskStatus, Comment } from '../types';
 import { useProjects } from './ProjectContext';
+import { useAdmin } from './AdminContext';
 
 interface TaskContextType {
   allTasks: EnrichedTask[];
@@ -17,6 +18,7 @@ interface TaskContextType {
   getTasksForPhase: (projectId: string, phaseId: string) => WBSTask[];
   getTasksForMilestone: (projectId: string, phaseId: string, milestoneId: string) => WBSTask[];
   reorderTasksInGroup: (projectId: string, phaseId: string, milestoneId: string | undefined, taskIds: string[]) => void;
+  moveTaskInGroup: (projectId: string, phaseId: string, milestoneId: string | undefined, taskId: string, direction: 'up' | 'down') => void;
 }
 
 export interface EnrichedTask extends WBSTask {
@@ -99,12 +101,22 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   };
 
   const updateTask = (taskId: string, updates: Partial<WBSTask>) => {
+    // Validação: Se marcando como 'done', verificar se todas as subtarefas estão concluídas
+    const task = allTasks.find(t => t.id === taskId);
+    if (task && updates.status === 'done' && task.subtasks && task.subtasks.length > 0) {
+      const allSubtasksDone = task.subtasks.every(st => st.completed);
+      if (!allSubtasksDone) {
+        console.warn('Não é possível marcar como concluído: existem subtarefas inconclusas');
+        return; // Impedir atualização
+      }
+    }
+
     // Check if it's an independent task
     const isIndependent = independentTasks.some(t => t.id === taskId);
     
     if (isIndependent) {
       setIndependentTasks(prev =>
-        prev.map(task => (task.id === taskId ? { ...task, ...updates } : task))
+        prev.map(t => (t.id === taskId ? { ...t, ...updates } : t))
       );
     } else {
       // Update task in project structure
@@ -115,12 +127,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
             ...phase,
             milestones: phase.milestones.map(milestone => ({
               ...milestone,
-              tasks: milestone.tasks.map(task => {
-                if (task.id === taskId) {
+              tasks: milestone.tasks.map(t => {
+                if (t.id === taskId) {
                   updated = true;
-                  return { ...task, ...updates };
+                  return { ...t, ...updates };
                 }
-                return task;
+                return t;
               }),
             })),
           }));
@@ -279,6 +291,37 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const moveTaskInGroup = (projectId: string, phaseId: string, milestoneId: string | undefined, taskId: string, direction: 'up' | 'down') => {
+    // Obter todas as tasks do grupo e encontrar índice
+    let groupTasks = allTasks.filter(t => t.phaseId === phaseId);
+    if (milestoneId) {
+      groupTasks = groupTasks.filter(t => t.milestoneId === milestoneId);
+    } else {
+      groupTasks = groupTasks.filter(t => !t.milestoneId);
+    }
+
+    groupTasks = groupTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const taskIndex = groupTasks.findIndex(t => t.id === taskId);
+
+    if (taskIndex === -1) return;
+
+    let newIndex = taskIndex;
+    if (direction === 'up' && taskIndex > 0) {
+      newIndex = taskIndex - 1;
+    } else if (direction === 'down' && taskIndex < groupTasks.length - 1) {
+      newIndex = taskIndex + 1;
+    } else {
+      return; // Impossível mover
+    }
+
+    // Trocar orders
+    const currentOrder = groupTasks[taskIndex].order || 0;
+    const targetOrder = groupTasks[newIndex].order || 0;
+
+    updateTask(taskId, { order: targetOrder });
+    updateTask(groupTasks[newIndex].id, { order: currentOrder });
+  };
+
   return (
     <TaskContext.Provider
       value={{
@@ -296,6 +339,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         getTasksForPhase,
         getTasksForMilestone,
         reorderTasksInGroup,
+        moveTaskInGroup,
       }}
     >
       {children}

@@ -1,9 +1,12 @@
 import { ChevronDown, ChevronRight, Edit2 } from 'lucide-react';
 import { Phase, WBSTask } from '../types';
+import { useTasks } from '../context/TaskContext';
 import { getPhaseStatusBadge, PhaseStatus } from '../utils/phaseStatusCalculator';
 import { MilestoneCard } from './MilestoneCard';
+import { TaskCard } from './TaskCard';
 
 interface PhaseCardProps {
+  projectId?: string;
   phase: Phase;
   tasks: WBSTask[];
   phaseProgress?: number;
@@ -17,6 +20,7 @@ interface PhaseCardProps {
 }
 
 export function PhaseCard({
+  projectId,
   phase,
   tasks,
   phaseProgress = 0,
@@ -28,8 +32,10 @@ export function PhaseCard({
   onEditTask,
   onEditPhase,
 }: PhaseCardProps) {
+  const { moveTaskInGroup } = useTasks();
+
   // Tasks sem marco específico
-  const tasksWithoutMilestone = tasks.filter(t => !t.milestoneId);
+  const tasksWithoutMilestone = tasks.filter(t => !t.milestoneId).sort((a, b) => (a.order || 0) - (b.order || 0));
   const statusBadge = getPhaseStatusBadge(phaseStatus);
 
   return (
@@ -116,21 +122,17 @@ export function PhaseCard({
             <div className="border border-gray-200 rounded p-3">
               <div className="text-sm font-medium text-gray-700 mb-2">Tarefas da Fase (sem marco específico)</div>
               <div className="space-y-1">
-                {tasksWithoutMilestone.map((task) => (
-                  <div key={task.id} className="text-xs p-2 bg-white border border-gray-100 rounded flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{task.title}</p>
-                      <p className="text-gray-500">{task.assignee}</p>
-                    </div>
-                    {onEditTask && (
-                      <button
-                        onClick={() => onEditTask(task)}
-                        className="ml-2 text-gray-500 hover:text-blue-600 text-xs px-2 py-1"
-                      >
-                        ⚙️
-                      </button>
-                    )}
-                  </div>
+                {tasksWithoutMilestone.map((task, index) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onEdit={onEditTask}
+                    showOrderControls={true}
+                    isFirst={index === 0}
+                    isLast={index === tasksWithoutMilestone.length - 1}
+                    onMoveUp={() => projectId && moveTaskInGroup(projectId, phase.id, undefined, task.id, 'up')}
+                    onMoveDown={() => projectId && moveTaskInGroup(projectId, phase.id, undefined, task.id, 'down')}
+                  />
                 ))}
               </div>
             </div>

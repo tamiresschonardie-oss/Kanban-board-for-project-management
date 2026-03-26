@@ -88,6 +88,7 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
           return (
             <PhaseCard
               key={phase.id}
+              projectId={project.id}
               phase={phase}
               tasks={phaseTasks}
               phaseProgress={phaseProgress}

@@ -1,9 +1,15 @@
 import { ChevronRight, Edit2 } from 'lucide-react';
 import { WBSTask } from '../types';
+import { TaskOrderControls } from './TaskOrderControls';
 
 interface TaskCardProps {
   task: WBSTask;
   onEdit?: (task: WBSTask) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  showOrderControls?: boolean;
 }
 
 const getTaskStatusLabel = (status: string): string => {
@@ -33,7 +39,15 @@ const getPriorityColor = (priority?: string): string => {
   return colors[priority || 'medium'] || 'text-gray-600';
 };
 
-export function TaskCard({ task, onEdit }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onEdit,
+  isFirst = true,
+  isLast = true,
+  onMoveUp,
+  onMoveDown,
+  showOrderControls = false,
+}: TaskCardProps) {
   return (
     <div className="bg-white border border-gray-200 rounded p-3 text-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -48,6 +62,15 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
             <span className={`text-xs font-bold ${getPriorityColor(task.priority)}`}>
               {task.priority === 'high' ? '!' : task.priority === 'medium' ? '•' : '○'}
             </span>
+          )}
+          {showOrderControls && (
+            <TaskOrderControls
+              task={task}
+              isFirst={isFirst}
+              isLast={isLast}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+            />
           )}
           {onEdit && (
             <button
