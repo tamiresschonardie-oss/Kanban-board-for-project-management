@@ -127,6 +127,16 @@ export function EditPhaseModal({ phase, project, isOpen, onClose }: EditPhaseMod
               />
             </div>
           </div>
+
+          {/* DEBUG: Mostra o que vai ser salvo */}
+          <div className="mt-4 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+            <p className="text-xs font-bold text-cyan-900 mb-2">DEBUG - Será salvo:</p>
+            <div className="text-xs text-cyan-800 space-y-1">
+              <div>plannedStartDate: <code className="bg-white px-1">{formData.plannedStartDate || 'undefined'}</code></div>
+              <div>plannedEndDate: <code className="bg-white px-1">{formData.plannedEndDate || 'undefined'}</code></div>
+              <div>actualEndDate: <code className="bg-white px-1">{formData.actualEndDate || 'undefined'}</code></div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

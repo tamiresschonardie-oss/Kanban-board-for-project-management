@@ -208,10 +208,27 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [projects]);
 
   const updateProject = (id: string, updates: Partial<Project>) => {
+    console.log('[ProjectContext.updateProject] Chamado com:', {
+      projectId: id,
+      updates,
+      hasPhases: !!updates.phases,
+      phasesLength: updates.phases?.length,
+      firstPhase: updates.phases?.[0],
+    });
+    
     setProjects(prev => 
-      prev.map(project => 
-        project.id === id ? { ...project, ...updates } : project
-      )
+      prev.map(project => {
+        if (project.id === id) {
+          const updated = { ...project, ...updates };
+          console.log('[ProjectContext.updateProject] Projeto atualizado:', {
+            projectId: updated.id,
+            phasesCount: updated.phases?.length,
+            firstPhase: updated.phases?.[0],
+          });
+          return updated;
+        }
+        return project;
+      })
     );
   };
 
