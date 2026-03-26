@@ -744,9 +744,16 @@ function TasksKanbanTab({
   onCreateTask: () => void;
   onEditTask?: (task: WBSTask) => void;
 }) {
-  const { getTasksForProject } = useTasks();
+  const { getTasksForProject, updateTask } = useTasks();
   const allTasks = getTasksForProject(project.id);
 
-  return <ProjectTasksKanbanView project={project} allTasks={allTasks} onEditTask={onEditTask} />;
+  return (
+    <ProjectTasksKanbanView 
+      project={project} 
+      allTasks={allTasks} 
+      onEditTask={onEditTask}
+      onUpdateTask={updateTask}
+    />
+  );
 }
 

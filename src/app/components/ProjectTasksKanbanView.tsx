@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Project, WBSTask } from '../types';
 
 interface ProjectTasksKanbanViewProps {
   project: Project;
   allTasks: WBSTask[];
   onEditTask?: (task: WBSTask) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<WBSTask>) => void;
 }
 
 const getStatusBadge = (status: string) => {
@@ -26,7 +28,52 @@ export function ProjectTasksKanbanView({
   project,
   allTasks,
   onEditTask,
+  onUpdateTask,
 }: ProjectTasksKanbanViewProps) {
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
+
+  const handleDragStart = (task: WBSTask, e: React.DragEvent<HTMLDivElement>) => {
+    setDraggedTaskId(task.id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('taskId', task.id);
+    e.dataTransfer.setData('sourcePhaseId', task.phaseId || '');
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (phaseId: string, e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setActivePhaseId(phaseId);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.currentTarget === e.target) {
+      setActivePhaseId(null);
+    }
+  };
+
+  const handleDrop = (targetPhaseId: string, e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('taskId');
+    const sourcePhaseId = e.dataTransfer.getData('sourcePhaseId');
+
+    if (sourcePhaseId !== targetPhaseId && onUpdateTask) {
+      onUpdateTask(taskId, { phaseId: targetPhaseId });
+    }
+
+    setDraggedTaskId(null);
+    setActivePhaseId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setActivePhaseId(null);
+  };
+
   if (!project.phases || project.phases.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -47,7 +94,15 @@ export function ProjectTasksKanbanView({
           return (
             <div
               key={phase.id}
-              className="flex-shrink-0 w-96 flex flex-col bg-gray-50 rounded-lg border border-gray-200 overflow-hidden"
+              className={`flex-shrink-0 w-96 flex flex-col bg-gray-50 rounded-lg border-2 overflow-hidden transition-colors ${
+                activePhaseId === phase.id
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200'
+              }`}
+              onDragEnter={(e) => handleDragEnter(phase.id, e)}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(phase.id, e)}
             >
               {/* Phase Header */}
               <div className="bg-white border-b border-gray-200 p-4 sticky top-0 z-10">
@@ -67,8 +122,15 @@ export function ProjectTasksKanbanView({
                   phaseTasks.map((task) => (
                     <div
                       key={task.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(task, e)}
+                      onDragEnd={handleDragEnd}
                       onClick={() => onEditTask?.(task)}
-                      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer"
+                      className={`bg-white border border-gray-200 rounded-lg p-3 transition-all cursor-move ${
+                        draggedTaskId === task.id
+                          ? 'opacity-50 border-gray-300'
+                          : 'hover:shadow-md cursor-pointer'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h4 className="font-medium text-sm text-gray-900 flex-1 line-clamp-2">
