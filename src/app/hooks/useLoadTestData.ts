@@ -15,6 +15,14 @@ export function useLoadTestData() {
 
   const loadTestData = () => {
     try {
+      // DEBUG: Verificar testProjectData antes de salvar
+      console.log('[DEBUG] testProjectData.phases com datas:', testProjectData.phases.map(p => ({
+        id: p.id,
+        name: p.name,
+        startDate: p.startDate,
+        endDate: p.endDate,
+      })));
+
       // 1. Adicionar EAP template
       addEAPTemplate(testEAPTemplate);
 

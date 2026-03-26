@@ -17,7 +17,17 @@ export interface BarPosition {
  * @returns DateRange ou null se nenhuma fase possui datas
  */
 export function getProjectDateRange(phases: Phase[]): DateRange | null {
+  // DEBUG: Verificar fases recebidas
+  console.log('[DEBUG] ganttCalculator - fases recebidas:', phases.map(p => ({
+    id: p.id,
+    name: p.name,
+    startDate: p.startDate,
+    endDate: p.endDate,
+  })));
+
   const phasesWithDates = phases.filter(p => p.startDate && p.endDate);
+
+  console.log('[DEBUG] ganttCalculator - fases com datas:', phasesWithDates.length, 'de', phases.length);
 
   if (phasesWithDates.length === 0) {
     return null;

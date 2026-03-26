@@ -27,6 +27,16 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
 
   if (!isOpen) return null;
 
+  // DEBUG: Verificar projeto recebido
+  if (project.id === 'test-project-gantt') {
+    console.log('[DEBUG] ProjectDetailModal - project.phases com datas:', project.phases.map(p => ({
+      id: p.id,
+      name: p.name,
+      startDate: p.startDate,
+      endDate: p.endDate,
+    })));
+  }
+
   // Calculate project progress
   const calculatedProgress = getProjectProgress(project, allTasks);
   

@@ -14,6 +14,16 @@ interface ProjectGanttTabProps {
 }
 
 export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
+  // DEBUG: Verificar fases recebidas
+  if (project.id === 'test-project-gantt') {
+    console.log('[DEBUG] ProjectGanttTab - project.phases com datas:', project.phases?.map(p => ({
+      id: p.id,
+      name: p.name,
+      startDate: p.startDate,
+      endDate: p.endDate,
+    })));
+  }
+
   if (!project.phases || project.phases.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -28,6 +38,11 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
   }
 
   const dateRange = getProjectDateRange(project.phases);
+
+  // DEBUG: Verificar resultado do cálculo
+  if (project.id === 'test-project-gantt') {
+    console.log('[DEBUG] ProjectGanttTab - dateRange resultado:', dateRange);
+  }
 
   if (!dateRange) {
     return (
