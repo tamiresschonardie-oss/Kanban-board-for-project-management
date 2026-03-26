@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { WBSTask, TaskStatus } from '../types';
+import { WBSTask, TaskStatus, Comment } from '../types';
 import { useProjects } from './ProjectContext';
 
 interface TaskContextType {
@@ -37,14 +37,6 @@ interface TimeTrackingEntry {
   startTime: string;
   endTime?: string;
   duration?: number; // minutes
-}
-
-interface Comment {
-  id: string;
-  userId: string;
-  userName: string;
-  content: string;
-  timestamp: string;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);

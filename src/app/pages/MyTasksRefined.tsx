@@ -44,10 +44,10 @@ function DraggableTaskCard({ task, onClick }: DraggableTaskCardProps) {
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-  }), [task.id]);
+  }), [task.id, updateTask]);
 
-  const completedSubtasks = task.subtasks.filter(st => st.completed).length;
-  const totalSubtasks = task.subtasks.length;
+  const completedSubtasks = task.subtasks?.filter(st => st.completed).length || 0;
+  const totalSubtasks = task.subtasks?.length || 0;
   const progress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   const getPriorityColor = (priority?: string) => {
@@ -74,9 +74,13 @@ function DraggableTaskCard({ task, onClick }: DraggableTaskCardProps) {
     }
   };
 
+  const dragRef = (el: HTMLDivElement | null) => {
+    drag(el);
+  };
+
   return (
     <div
-      ref={drag}
+      ref={dragRef}
       onClick={onClick}
       className={`border-l-4 rounded-lg p-4 mb-3 cursor-pointer hover:shadow-md transition-all ${getPriorityColor(task.priority)} ${
         isDragging ? 'opacity-50' : ''
@@ -257,6 +261,11 @@ function DraggableColumn({
     dropColumn(el);
   };
 
+  // Combine refs for task drop zone
+  const combinedTaskRef = (el: HTMLDivElement | null) => {
+    dropTask(el);
+  };
+
   return (
     <div
       ref={combinedColumnRef}
@@ -311,7 +320,7 @@ function DraggableColumn({
       </div>
       
       <div
-        ref={dropTask}
+        ref={combinedTaskRef}
         className={`min-h-[500px] rounded-lg transition-all ${
           isOverTask ? 'bg-blue-50 ring-2 ring-blue-300 p-2' : ''
         }`}
@@ -491,7 +500,6 @@ export function MyTasksRefined() {
 
   const handleTaskDrop = useCallback((taskId: string, columnId: string) => {
     updateTask(taskId, { 
-      kanbanColumn: columnId,
       status: columnId === 'done' ? 'done' : columnId === 'in-progress' ? 'doing' : 'todo'
     });
   }, [updateTask]);
