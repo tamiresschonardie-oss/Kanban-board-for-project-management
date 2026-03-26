@@ -30,40 +30,9 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
 
   const dateRange = getProjectDateRange(project.phases);
 
-  // DEBUG: Mostra dados das fases e qual branch será usado
-  const debugInfo = (
-    <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg space-y-3">
-      <p className="text-sm font-bold text-yellow-900">DEBUG - Fases recebidas:</p>
-      <div className="space-y-2 text-xs text-yellow-800">
-        {project.phases?.map(p => {
-          let usedBranch = 'NENHUMA';
-          if (p.plannedStartDate && p.plannedEndDate) {
-            usedBranch = 'PLANNED (plannedStartDate/plannedEndDate)';
-          } else if (p.startDate && p.endDate) {
-            usedBranch = 'EXISTING (startDate/endDate)';
-          } else if (p.milestones?.some(m => m.startDate && m.endDate)) {
-            usedBranch = 'MILESTONE FALLBACK';
-          }
-          return (
-            <div key={p.id} className="bg-white p-2 rounded border border-yellow-100 space-y-1">
-              <div><strong>{p.name}</strong> → <strong className="text-red-600">{usedBranch}</strong></div>
-              <div className="ml-2 text-xs">
-                <div>plannedStartDate: <code className="bg-yellow-100 px-1">{p.plannedStartDate || 'undefined'}</code></div>
-                <div>plannedEndDate: <code className="bg-yellow-100 px-1">{p.plannedEndDate || 'undefined'}</code></div>
-                <div>startDate: <code className="bg-yellow-100 px-1">{p.startDate || 'undefined'}</code></div>
-                <div>endDate: <code className="bg-yellow-100 px-1">{p.endDate || 'undefined'}</code></div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   if (!dateRange) {
     return (
       <div>
-        {debugInfo}
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <p className="text-gray-500 text-lg font-medium mb-2">Nenhuma fase possui datas definidas</p>
@@ -91,9 +60,6 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
 
   return (
     <div>
-      {debugInfo}
-      <div className="overflow-x-auto">
-        <div className="min-w-full">
           {/* Header com timeline */}
           <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
@@ -192,8 +158,5 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
             );
           })}
         </div>
-        </div>
-      </div>
-    </div>
   );
 }
