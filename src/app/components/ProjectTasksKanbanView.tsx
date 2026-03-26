@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Edit2 } from 'lucide-react';
 import { Project, WBSTask } from '../types';
 
 interface ProjectTasksKanbanViewProps {
@@ -16,6 +17,24 @@ const getStatusBadge = (status: string) => {
   };
 
   const config = statusConfig[status] || statusConfig.todo;
+
+  return (
+    <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.color}`}>
+      {config.label}
+    </span>
+  );
+};
+
+const getPriorityBadge = (priority?: string) => {
+  if (!priority) return null;
+
+  const priorityConfig: Record<string, { label: string; color: string }> = {
+    low: { label: 'Baixa', color: 'bg-gray-100 text-gray-600' },
+    medium: { label: 'Média', color: 'bg-yellow-100 text-yellow-700' },
+    high: { label: 'Alta', color: 'bg-red-100 text-red-700' },
+  };
+
+  const config = priorityConfig[priority] || priorityConfig.low;
 
   return (
     <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.color}`}>
@@ -86,15 +105,17 @@ export function ProjectTasksKanbanView({
   }
 
   return (
-    <div className="overflow-x-auto overflow-y-hidden pb-6">
-      <div className="flex gap-6 min-w-min">
+    <div className="overflow-x-auto overflow-y-hidden pb-6 h-full">
+      <div className="flex gap-6 min-w-min h-full">
         {project.phases.map((phase) => {
           const phaseTasks = allTasks.filter(task => task.phaseId === phase.id);
+          const completedTasks = phaseTasks.filter(t => t.status === 'done').length;
+          const phaseProgress = phaseTasks.length > 0 ? Math.round((completedTasks / phaseTasks.length) * 100) : 0;
 
           return (
             <div
               key={phase.id}
-              className={`flex-shrink-0 w-96 flex flex-col bg-gray-50 rounded-lg border-2 overflow-hidden transition-colors ${
+              className={`flex-shrink-0 w-96 flex flex-col bg-gray-50 rounded-lg border-2 overflow-hidden transition-all ${
                 activePhaseId === phase.id
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200'
@@ -105,18 +126,33 @@ export function ProjectTasksKanbanView({
               onDrop={(e) => handleDrop(phase.id, e)}
             >
               {/* Phase Header */}
-              <div className="bg-white border-b border-gray-200 p-4 sticky top-0 z-10">
-                <h3 className="font-semibold text-gray-900">{phase.name}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {phaseTasks.length} tarefa{phaseTasks.length !== 1 ? 's' : ''}
+              <div className="bg-white border-b border-gray-200 p-4 sticky top-0 z-10 flex-shrink-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-semibold text-gray-900">{phase.name}</h3>
+                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    {phaseTasks.length}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mb-3">
+                  {completedTasks} de {phaseTasks.length} completas
                 </p>
+                {/* Progress Bar */}
+                <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all"
+                    style={{ width: `${phaseProgress}%` }}
+                  />
+                </div>
               </div>
 
               {/* Tasks Container */}
-              <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+              <div className="flex-1 p-4 space-y-3 overflow-y-auto min-h-0">
                 {phaseTasks.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400 text-sm">Sem tarefas nesta fase</p>
+                  <div className="flex items-center justify-center h-full text-center">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium">Sem tarefas</p>
+                      <p className="text-gray-300 text-xs mt-1">Arraste tarefas aqui</p>
+                    </div>
                   </div>
                 ) : (
                   phaseTasks.map((task) => (
@@ -125,53 +161,63 @@ export function ProjectTasksKanbanView({
                       draggable
                       onDragStart={(e) => handleDragStart(task, e)}
                       onDragEnd={handleDragEnd}
-                      onClick={() => onEditTask?.(task)}
-                      className={`bg-white border border-gray-200 rounded-lg p-3 transition-all cursor-move ${
+                      className={`bg-white border border-gray-200 rounded-lg p-3 transition-all cursor-grab active:cursor-grabbing ${
                         draggedTaskId === task.id
                           ? 'opacity-50 border-gray-300'
-                          : 'hover:shadow-md cursor-pointer'
+                          : 'hover:shadow-md'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="font-medium text-sm text-gray-900 flex-1 line-clamp-2">
-                          {task.title}
-                        </h4>
+                      {/* Card Header */}
+                      <div className="flex items-start justify-between gap-2 mb-3 pb-2 border-b border-gray-100">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm text-gray-900 line-clamp-2 break-words">
+                            {task.title}
+                          </h4>
+                        </div>
                         {onEditTask && (
                           <button
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               onEditTask(task);
                             }}
-                            className="text-gray-400 hover:text-blue-600 text-xs px-1 py-1 flex-shrink-0"
+                            className="text-gray-400 hover:text-blue-600 flex-shrink-0 p-1 hover:bg-blue-50 rounded transition-colors"
+                            title="Editar tarefa"
                           >
-                            ⚙️
+                            <Edit2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>
 
                       {/* Status Badge */}
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
                         {getStatusBadge(task.status)}
+                        {getPriorityBadge(task.priority)}
                       </div>
 
                       {/* Task Info */}
-                      <div className="text-xs text-gray-600 space-y-1">
+                      <div className="space-y-2 text-xs text-gray-600">
                         {task.assignee && (
-                          <p className="truncate">
-                            <span className="font-medium">Responsável:</span> {task.assignee}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">👤</span>
+                            <span className="truncate">{task.assignee}</span>
+                          </div>
                         )}
                         {task.dueDate && (
-                          <p>
-                            <span className="font-medium">Prazo:</span>{' '}
-                            {new Date(task.dueDate).toLocaleDateString('pt-BR')}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">📅</span>
+                            <span>
+                              {new Date(task.dueDate).toLocaleDateString('pt-BR')}
+                            </span>
+                          </div>
                         )}
-                        {task.priority && (
-                          <p>
-                            <span className="font-medium">Prioridade:</span>{' '}
-                            <span className="capitalize">{task.priority}</span>
-                          </p>
+                        {task.milestoneId && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">🎯</span>
+                            <span className="truncate text-blue-600 font-medium">
+                              {task.milestoneId}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
