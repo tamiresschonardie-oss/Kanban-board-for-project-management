@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Calendar,
   User,
   Flag,
@@ -22,6 +23,7 @@ interface TaskListViewProps {
   onUpdateTask: (taskId: string, updates: any) => void;
   onAddSubtask: (taskId: string, title: string) => void;
   onDeleteTask: (taskId: string) => void;
+  onMoveTask?: (taskId: string, direction: 'up' | 'down') => void;
 }
 
 interface SubtaskRowProps {
@@ -210,7 +212,10 @@ function TaskRow({
   onTaskClick, 
   onUpdateTask,
   onAddSubtask,
-  onDeleteTask
+  onDeleteTask,
+  onMoveTask,
+  isFirst,
+  isLast
 }: { 
   task: EnrichedTask; 
   columns: KanbanColumn[];
@@ -218,6 +223,9 @@ function TaskRow({
   onUpdateTask: (taskId: string, updates: any) => void;
   onAddSubtask: (taskId: string, title: string) => void;
   onDeleteTask: (taskId: string) => void;
+  onMoveTask?: (taskId: string, direction: 'up' | 'down') => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showStatusPopover, setShowStatusPopover] = useState(false);
@@ -502,15 +510,46 @@ function TaskRow({
           )}
         </td>
         <td className="px-6 py-4 relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowActionsMenu(!showActionsMenu);
-            }}
-            className="p-1 hover:bg-gray-200 rounded opacity-0 group-hover:opacity-100"
-          >
-            <MoreHorizontal className="w-4 h-4 text-gray-400" />
-          </button>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            {/* Move Up Button */}
+            {onMoveTask && !isFirst && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveTask(task.id, 'up');
+                }}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Mover para cima"
+              >
+                <ChevronUp className="w-4 h-4 text-blue-600" />
+              </button>
+            )}
+            
+            {/* Move Down Button */}
+            {onMoveTask && !isLast && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveTask(task.id, 'down');
+                }}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Mover para baixo"
+              >
+                <ChevronDown className="w-4 h-4 text-blue-600" />
+              </button>
+            )}
+            
+            {/* Actions Menu */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowActionsMenu(!showActionsMenu);
+              }}
+              className="p-1 hover:bg-gray-200 rounded"
+            >
+              <MoreHorizontal className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
 
           {/* Actions Menu */}
           {showActionsMenu && (
@@ -620,7 +659,8 @@ export function TaskListView({
   onTaskClick, 
   onUpdateTask,
   onAddSubtask,
-  onDeleteTask
+  onDeleteTask,
+  onMoveTask
 }: TaskListViewProps) {
   if (tasks.length === 0) {
     return (
@@ -662,7 +702,7 @@ export function TaskListView({
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task) => (
+          {tasks.map((task, index) => (
             <TaskRow
               key={task.id}
               task={task}
@@ -671,6 +711,9 @@ export function TaskListView({
               onUpdateTask={onUpdateTask}
               onAddSubtask={onAddSubtask}
               onDeleteTask={onDeleteTask}
+              onMoveTask={onMoveTask}
+              isFirst={index === 0}
+              isLast={index === tasks.length - 1}
             />
           ))}
         </tbody>

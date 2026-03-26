@@ -339,7 +339,7 @@ function DraggableColumn({
 }
 
 export function MyTasksRefined() {
-  const { allTasks, updateTask, addIndependentTask } = useTasks();
+  const { allTasks, updateTask, addIndependentTask, moveIndependentTask } = useTasks();
   const { columns, addColumn, updateColumn, deleteColumn, reorderColumns } = useUserKanban();
   const { users, clients, products, teams } = useAdmin();
   const { projects } = useProjects();
@@ -434,7 +434,7 @@ export function MyTasksRefined() {
 
   // Apply filters
   const filteredTasks = useMemo(() => {
-    return myTasks.filter((task) => {
+    const filtered = myTasks.filter((task) => {
       // Search filter
       if (searchTerm && !task.title.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
@@ -477,6 +477,9 @@ export function MyTasksRefined() {
       
       return true;
     });
+    
+    // Sort by order
+    return filtered.sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [myTasks, searchTerm, selectedProjects, selectedAssignees, selectedPriorities, selectedTags, selectedStatuses, users]);
 
   // Stats
@@ -776,6 +779,7 @@ export function MyTasksRefined() {
           onUpdateTask={updateTask}
           onAddSubtask={handleAddSubtask}
           onDeleteTask={handleDeleteTask}
+          onMoveTask={moveIndependentTask}
         />
       )}
 

@@ -19,6 +19,7 @@ interface TaskContextType {
   getTasksForMilestone: (projectId: string, phaseId: string, milestoneId: string) => WBSTask[];
   reorderTasksInGroup: (projectId: string, phaseId: string, milestoneId: string | undefined, taskIds: string[]) => void;
   moveTaskInGroup: (projectId: string, phaseId: string, milestoneId: string | undefined, taskId: string, direction: 'up' | 'down') => void;
+  moveIndependentTask: (taskId: string, direction: 'up' | 'down') => void;
 }
 
 export interface EnrichedTask extends WBSTask {
@@ -292,8 +293,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   };
 
   const moveTaskInGroup = (projectId: string, phaseId: string, milestoneId: string | undefined, taskId: string, direction: 'up' | 'down') => {
-    // Obter todas as tasks do grupo e encontrar índice
-    let groupTasks = allTasks.filter(t => t.phaseId === phaseId);
+    // Obter todas as tasks do grupo (mesmo projeto + mesma fase + mesmo milestone)
+    let groupTasks = allTasks.filter(t => t.projectId === projectId && t.phaseId === phaseId);
+    
     if (milestoneId) {
       groupTasks = groupTasks.filter(t => t.milestoneId === milestoneId);
     } else {
@@ -303,7 +305,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     groupTasks = groupTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
     const taskIndex = groupTasks.findIndex(t => t.id === taskId);
 
-    if (taskIndex === -1) return;
+    if (taskIndex === -1 || groupTasks.length <= 1) return;
 
     let newIndex = taskIndex;
     if (direction === 'up' && taskIndex > 0) {
@@ -314,12 +316,44 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       return; // Impossível mover
     }
 
-    // Trocar orders
-    const currentOrder = groupTasks[taskIndex].order || 0;
-    const targetOrder = groupTasks[newIndex].order || 0;
+    // Reordenar no array
+    const [movedTask] = groupTasks.splice(taskIndex, 1);
+    groupTasks.splice(newIndex, 0, movedTask);
 
-    updateTask(taskId, { order: targetOrder });
-    updateTask(groupTasks[newIndex].id, { order: currentOrder });
+    // Renormalizar orders para toda o grupo (0, 1, 2, 3...)
+    groupTasks.forEach((task, index) => {
+      if (task.order !== index) {
+        updateTask(task.id, { order: index });
+      }
+    });
+  };
+
+  const moveIndependentTask = (taskId: string, direction: 'up' | 'down') => {
+    // Reordenar tasks independentes
+    const sortedTasks = [...independentTasks].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const taskIndex = sortedTasks.findIndex(t => t.id === taskId);
+
+    if (taskIndex === -1 || sortedTasks.length <= 1) return;
+
+    let newIndex = taskIndex;
+    if (direction === 'up' && taskIndex > 0) {
+      newIndex = taskIndex - 1;
+    } else if (direction === 'down' && taskIndex < sortedTasks.length - 1) {
+      newIndex = taskIndex + 1;
+    } else {
+      return; // Impossível mover
+    }
+
+    // Reordenar no array
+    const [movedTask] = sortedTasks.splice(taskIndex, 1);
+    sortedTasks.splice(newIndex, 0, movedTask);
+
+    // Renormalizar orders (0, 1, 2, 3...)
+    sortedTasks.forEach((task, index) => {
+      if (task.order !== index) {
+        updateTask(task.id, { order: index });
+      }
+    });
   };
 
   return (
@@ -340,6 +374,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         getTasksForMilestone,
         reorderTasksInGroup,
         moveTaskInGroup,
+        moveIndependentTask,
       }}
     >
       {children}
