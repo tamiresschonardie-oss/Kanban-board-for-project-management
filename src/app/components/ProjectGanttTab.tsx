@@ -59,9 +59,10 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
   }
 
   return (
-    <div>
-          {/* Header com timeline */}
-          <div className="mb-6">
+    <div className="overflow-x-auto">
+      <div className="min-w-full">
+        {/* Header com timeline */}
+        <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-48 flex-shrink-0"></div>
             <div className="flex-1 flex text-xs text-gray-500 font-medium">
@@ -158,5 +159,7 @@ export function ProjectGanttTab({ project, allTasks }: ProjectGanttTabProps) {
             );
           })}
         </div>
+      </div>
+    </div>
   );
 }
