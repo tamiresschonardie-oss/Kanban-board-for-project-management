@@ -1,0 +1,56 @@
+Perfeito, agora quero avançar em uma etapa mais robusta para aproveitar melhor os créditos restantes.
+
+Quero implementar um pacote funcional de evolução da gestão interna do projeto, focado em execução e organização.
+
+Objetivo:
+Consolidar as próximas funcionalidades centrais do fluxo interno do projeto, sem entrar agora em refinamento visual detalhado.
+
+Quero implementar nesta próxima etapa:
+
+1. Reordenação de tasks dentro da mesma fase/marco
+- permitir alterar a ordem das tasks dentro da fase
+- se houver marco, respeitar o agrupamento do marco
+- a ordem deve persistir após reload
+
+2. Melhor organização das tasks sem marco
+- tasks sem marco devem aparecer em uma seção própria da fase
+- a ordem dessas tasks também deve ser persistida
+
+3. Melhor leitura operacional da fase
+- exibir no header da fase:
+  - quantidade de tasks
+  - quantidade concluída
+  - progresso da fase
+  - status automático da fase
+
+4. Melhor leitura operacional do projeto
+- exibir no card/modal do projeto:
+  - quantidade total de tasks
+  - quantidade concluída
+  - quantidade em andamento
+  - quantidade em atraso (se houver prazo vencido e não concluído)
+
+5. Consolidar a consistência entre as abas
+- a mesma task deve continuar aparecendo corretamente em:
+  - Estrutura
+  - Tarefas
+  - Gantt (quando impactar cronograma)
+- não pode haver divergência entre as visões
+
+6. Garantir persistência
+- qualquer mudança de ordem deve permanecer após reload
+- qualquer mudança de fase/marco deve continuar persistida corretamente
+
+Importante:
+- não quero refino visual avançado agora
+- não quero novas telas macro ainda
+- quero foco total em funcionalidade e consistência
+- continuar usando TaskContext como fonte de verdade
+- não quebrar progresso automático, status automático nem o Gantt já implementado
+
+Antes de implementar, me explique de forma objetiva:
+1. como a ordenação será persistida
+2. quais campos existentes serão usados ou se precisará de ajuste mínimo na modelagem
+3. quais arquivos serão alterados
+4. como garantir que Estrutura, Tarefas, Status, Progresso e Gantt continuarão sincronizados
+5. o que exatamente será entregue nessa etapa agrupada
