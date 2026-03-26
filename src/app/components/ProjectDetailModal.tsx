@@ -28,6 +28,7 @@ export function ProjectDetailModal({ project, isOpen, onClose }: ProjectDetailMo
   if (!isOpen) return null;
 
   // DEBUG: Verificar projeto recebido
+  console.log('[DEBUG] ProjectDetailModal - projeto:', project.id, project.name, 'phases:', project.phases?.length, 'IDs:', project.phases?.map(p => p.id));
   if (project.id === 'test-project-gantt') {
     console.log('[DEBUG] ProjectDetailModal - project.phases com datas:', project.phases.map(p => ({
       id: p.id,

@@ -18,16 +18,14 @@ export interface BarPosition {
  */
 export function getProjectDateRange(phases: Phase[]): DateRange | null {
   // DEBUG: Verificar fases recebidas
-  console.log('[DEBUG] ganttCalculator - fases recebidas:', phases.map(p => ({
-    id: p.id,
-    name: p.name,
-    startDate: p.startDate,
-    endDate: p.endDate,
-  })));
+  console.log('[DEBUG] ganttCalculator - total de phases:', phases.length);
+  console.log('[DEBUG] ganttCalculator - phase IDs:', phases.map(p => p.id));
+  console.log('[DEBUG] ganttCalculator - phases com startDate:', phases.filter(p => p.startDate).length);
+  console.log('[DEBUG] ganttCalculator - phases com endDate:', phases.filter(p => p.endDate).length);
 
   const phasesWithDates = phases.filter(p => p.startDate && p.endDate);
 
-  console.log('[DEBUG] ganttCalculator - fases com datas:', phasesWithDates.length, 'de', phases.length);
+  console.log('[DEBUG] ganttCalculator - fases COM startDate E endDate:', phasesWithDates.length, 'de', phases.length);
 
   if (phasesWithDates.length === 0) {
     return null;
