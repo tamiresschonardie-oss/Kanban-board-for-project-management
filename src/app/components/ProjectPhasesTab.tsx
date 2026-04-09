@@ -7,26 +7,33 @@ import { useEAP } from '../context/EAPContext';
 import { useTasks } from '../context/TaskContext';
 import { getPhaseProgress } from '../utils/progressCalculator';
 import { getPhaseStatus } from '../utils/phaseStatusCalculator';
+import {
+  getProjectExecutionPhases,
+  getProjectExecutionTemplateId,
+} from '../utils/projectSelectors';
 import { PhaseCard } from './PhaseCard';
 import { EditPhaseModal } from './EditPhaseModal';
 
 interface ProjectPhasesTabProps {
   project: Project;
   onEditTask?: (task: any) => void;
+  onCreateTask?: (context: { projectId: string; phaseId: string; milestoneId: string }) => void;
 }
 
-export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps) {
+export function ProjectPhasesTab({ project, onEditTask, onCreateTask }: ProjectPhasesTabProps) {
   const { getEAPTemplate } = useEAP();
   const { getTasksForPhase, allTasks } = useTasks();
+  const executionPhases = useMemo(() => getProjectExecutionPhases(project), [project]);
+  const executionTemplateId = getProjectExecutionTemplateId(project);
   
   const eapName = useMemo(() => {
-    if (!project.eapId) return null;
-    const template = getEAPTemplate(project.eapId);
+    if (!executionTemplateId) return null;
+    const template = getEAPTemplate(executionTemplateId);
     return template?.name || null;
-  }, [project.eapId, getEAPTemplate]);
+  }, [executionTemplateId, getEAPTemplate]);
 
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(
-    () => new Set(project.phases?.map(p => p.id) || [])
+    () => new Set(executionPhases.map((phase) => phase.id))
   );
 
   const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set());
@@ -57,7 +64,7 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
     });
   };
 
-  if (!project.phases || project.phases.length === 0) {
+  if (executionPhases.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="text-gray-400 mb-3">
@@ -84,7 +91,7 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
         )}
 
         <div className="space-y-3">
-          {project.phases.map((phase) => {
+          {executionPhases.map((phase) => {
             const phaseTasks = getTasksForPhase(project.id, phase.id);
             const phaseProgress = getPhaseProgress(phase.id, allTasks);
             const phaseStatus = getPhaseStatus(phase.id, allTasks);
@@ -102,6 +109,13 @@ export function ProjectPhasesTab({ project, onEditTask }: ProjectPhasesTabProps)
                 onToggleMilestone={toggleMilestone}
                 onEditTask={onEditTask}
                 onEditPhase={() => setEditingPhase(phase)}
+                onCreateTask={({ phaseId, milestoneId }) =>
+                  onCreateTask?.({
+                    projectId: project.id,
+                    phaseId,
+                    milestoneId,
+                  })
+                }
               />
             );
           })}

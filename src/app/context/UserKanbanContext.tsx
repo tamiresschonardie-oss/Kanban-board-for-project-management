@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useAdmin } from './AdminContext';
 
 export interface KanbanColumn {
   id: string;
@@ -16,6 +17,9 @@ interface UserKanbanContextType {
 }
 
 const UserKanbanContext = createContext<UserKanbanContextType | undefined>(undefined);
+const STORAGE_KEY = 'user-kanban-columns';
+
+const getStorageKey = (userId?: string) => (userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY);
 
 // Default columns for personal kanban
 const DEFAULT_COLUMNS: KanbanColumn[] = [
@@ -26,7 +30,41 @@ const DEFAULT_COLUMNS: KanbanColumn[] = [
 ];
 
 export function UserKanbanProvider({ children }: { children: ReactNode }) {
-  const [columns, setColumns] = useState<KanbanColumn[]>(DEFAULT_COLUMNS);
+  const { currentUser } = useAdmin();
+
+  const readColumns = (userId?: string) => {
+    try {
+      const userScopedKey = getStorageKey(userId);
+      const stored = localStorage.getItem(userScopedKey);
+
+      if (!stored && userId) {
+        const legacy = localStorage.getItem(STORAGE_KEY);
+        if (legacy) {
+          localStorage.setItem(userScopedKey, legacy);
+          return JSON.parse(legacy) as KanbanColumn[];
+        }
+      }
+
+      if (!stored) return DEFAULT_COLUMNS;
+
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_COLUMNS;
+
+      return parsed as KanbanColumn[];
+    } catch {
+      return DEFAULT_COLUMNS;
+    }
+  };
+
+  const [columns, setColumns] = useState<KanbanColumn[]>(() => readColumns(currentUser?.id));
+
+  useEffect(() => {
+    setColumns(readColumns(currentUser?.id));
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    localStorage.setItem(getStorageKey(currentUser?.id), JSON.stringify(columns));
+  }, [columns, currentUser?.id]);
 
   const addColumn = (column: Omit<KanbanColumn, 'id' | 'order'>) => {
     const newColumn: KanbanColumn = {
@@ -42,9 +80,7 @@ export function UserKanbanProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteColumn = (id: string) => {
-    // Don't allow deleting if it's the last column
     if (columns.length <= 1) {
-      alert('Você precisa ter pelo menos uma coluna!');
       return;
     }
     setColumns(prev => prev.filter(col => col.id !== id));

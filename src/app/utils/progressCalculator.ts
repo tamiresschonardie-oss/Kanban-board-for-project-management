@@ -1,4 +1,19 @@
-import { Project, WBSTask } from '../types';
+import { Phase, Project, ProjectMetrics, WBSTask } from '../types';
+import {
+  getTaskNodeProgress,
+  getTaskNodeTotalTrackedSeconds,
+  getTaskNodeTotalTrackedMinutes,
+  isTaskNodeDeleted,
+  isTaskNodeEffectivelyComplete,
+} from '../selectors/taskSelectors';
+
+function getExecutionPhases(project: Project) {
+  return project.execution?.phases || [];
+}
+
+function getProjectMetricProgress(project: Project) {
+  return project.metrics?.progress ?? project.progress ?? 0;
+}
 
 /**
  * Calcula o progresso de uma fase baseado na quantidade de tarefas completas
@@ -7,15 +22,15 @@ import { Project, WBSTask } from '../types';
  * @returns Percentual de progresso (0-100)
  */
 export function getPhaseProgress(phaseId: string, allTasks: WBSTask[]): number {
-  const phaseTasks = allTasks.filter(t => t.phaseId === phaseId);
+  const phaseTasks = allTasks.filter((task) => task.phaseId === phaseId && !isTaskNodeDeleted(task));
 
-  // Fase sem tarefas = 0%
   if (phaseTasks.length === 0) return 0;
 
-  const completedTasks = phaseTasks.filter(t => t.status === 'done').length;
-  const progress = Math.round((completedTasks / phaseTasks.length) * 100);
-
-  return progress;
+  const totalProgress = phaseTasks.reduce(
+    (accumulator, task) => accumulator + getTaskNodeProgress(task),
+    0
+  );
+  return Math.round(totalProgress / phaseTasks.length);
 }
 
 /**
@@ -25,17 +40,70 @@ export function getPhaseProgress(phaseId: string, allTasks: WBSTask[]): number {
  * @returns Percentual de progresso (0-100)
  */
 export function getProjectProgress(project: Project, allTasks: WBSTask[]): number {
-  if (!project.phases || project.phases.length === 0) return 0;
+  const executionPhases = getExecutionPhases(project);
+  if (executionPhases.length === 0) {
+    return getProjectMetricProgress(project);
+  }
 
-  const phaseProgressos = project.phases.map(phase =>
-    getPhaseProgress(phase.id, allTasks)
+  const tasks = allTasks.filter(
+    (task) => executionPhases.some((phase) => phase.id === task.phaseId) && !isTaskNodeDeleted(task)
   );
 
-  const averageProgress = Math.round(
-    phaseProgressos.reduce((a, b) => a + b, 0) / project.phases.length
-  );
+  if (tasks.length === 0) return 0;
 
-  return averageProgress;
+  const totalProgress = tasks.reduce(
+    (accumulator, task) => accumulator + getTaskNodeProgress(task),
+    0
+  );
+  return Math.round(totalProgress / tasks.length);
+}
+
+export function calculateProjectMetricsFromExecution(project: Project): ProjectMetrics {
+  const phases = getExecutionPhases(project);
+  const rootTasks = phases.flatMap((phase) =>
+    phase.milestones.flatMap((milestone) => milestone.tasks || [])
+  ).filter((task) => !isTaskNodeDeleted(task));
+
+  if (rootTasks.length === 0) {
+    return {
+      progress: 0,
+      tasksTotal: 0,
+      tasksCompleted: 0,
+      hoursRemaining: 0,
+      totalTimeTracked: 0,
+      hoursRemainingSeconds: 0,
+      totalTimeTrackedSeconds: 0,
+    };
+  }
+
+  const tasksTotal = rootTasks.length;
+  const tasksCompleted = rootTasks.filter((task) => isTaskNodeEffectivelyComplete(task)).length;
+  const progress = Math.round(
+    rootTasks.reduce((total, task) => total + getTaskNodeProgress(task), 0) / tasksTotal
+  );
+  const totalTrackedMinutes = rootTasks.reduce(
+    (total, task) => total + getTaskNodeTotalTrackedMinutes(task),
+    0
+  );
+  const totalTrackedSeconds = rootTasks.reduce(
+    (total, task) => total + getTaskNodeTotalTrackedSeconds(task),
+    0
+  );
+  const estimatedHours = rootTasks.reduce(
+    (total, task) => total + (task.estimatedHours || 0),
+    0
+  );
+  const hoursRemainingSeconds = Math.max(Math.round(estimatedHours * 3600) - totalTrackedSeconds, 0);
+
+  return {
+    progress,
+    tasksTotal,
+    tasksCompleted,
+    hoursRemaining: Math.max(estimatedHours - totalTrackedMinutes / 60, 0),
+    totalTimeTracked: Number((totalTrackedMinutes / 60).toFixed(2)),
+    hoursRemainingSeconds,
+    totalTimeTrackedSeconds: totalTrackedSeconds,
+  };
 }
 
 /**

@@ -1,140 +1,175 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Briefcase, Building2, X } from 'lucide-react';
 import { useProjects } from '../context/ProjectContext';
+import { useAdmin } from '../context/AdminContext';
 import { ProjectCard } from '../components/ProjectCard';
-import { ProjectModal } from '../components/ProjectModal';
-import { Project } from '../types';
-import { Building2, Briefcase } from 'lucide-react';
+import { useProjectDetailNavigation } from '../hooks/useProjectDetailNavigation';
+import { GovernanceFilters } from '../components/GovernanceFilters';
+import {
+  DEFAULT_PROJECT_FILTERS,
+  filterProjects,
+  getProjectFilterOptions,
+  getProjectMetrics,
+  isProjectCompleted,
+} from '../utils/projectSelectors';
 
 export function ByClient() {
-  const { projects, filters, updateProject } = useProjects();
-  const [selectedProject, setSelectedProject] = useState<Project | undefined>();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { openProjectDetail } = useProjectDetailNavigation();
+  const { projects } = useProjects();
+  const { currentUser } = useAdmin();
+  const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
 
-  // Filter projects
-  const filteredProjects = projects.filter((project) => {
-    if (filters.quadro !== 'Todos' && project.quadro !== filters.quadro) return false;
-    if (filters.group !== 'Todos' && project.group !== filters.group) return false;
-    if (filters.client !== 'Todos' && project.client !== filters.client) return false;
-    if (filters.responsible !== 'Todos' && project.responsible !== filters.responsible) return false;
-    if (filters.project !== 'Todos' && project.name !== filters.project) return false;
-    return true;
-  });
+  const scopedProjects = useMemo(() => {
+    if (!currentUser) return projects;
+    if (currentUser.role === 'user') {
+      return projects.filter((project) => project.group === currentUser.team);
+    }
+    return projects;
+  }, [currentUser, projects]);
 
-  // Group by client
-  const clients = Array.from(new Set(filteredProjects.map(p => p.client)));
-  const projectsByClient = clients.map(client => ({
-    name: client,
-    projects: filteredProjects.filter(p => p.client === client),
-  }));
+  const filteredProjects = useMemo(
+    () => filterProjects(scopedProjects, filters),
+    [filters, scopedProjects]
+  );
 
-  const handleEdit = (project: Project) => {
-    setSelectedProject(project);
-    setIsModalOpen(true);
-  };
+  const filterOptions = useMemo(
+    () => getProjectFilterOptions(scopedProjects),
+    [scopedProjects]
+  );
 
-  const handleSave = (project: Project) => {
-    updateProject(project.id, project);
-  };
+  const projectsByClient = useMemo(() => {
+    const clients = Array.from(new Set(filteredProjects.map((project) => project.client))).sort((a, b) =>
+      a.localeCompare(b)
+    );
 
-  const getClientStats = (clientProjects: Project[]) => {
-    const total = clientProjects.length;
-    const avgProgress = total > 0 
-      ? Math.round(clientProjects.reduce((sum, p) => sum + p.progress, 0) / total)
-      : 0;
-    const inProgress = clientProjects.filter(p => p.progress > 0 && p.progress < 100).length;
-    const completed = clientProjects.filter(p => p.progress === 100).length;
+    return clients.map((client) => ({
+      name: client,
+      projects: filteredProjects.filter((project) => project.client === client),
+    }));
+  }, [filteredProjects]);
 
-    return { total, avgProgress, inProgress, completed };
-  };
+  const hasActiveFilters =
+    filters.team.length > 0 ||
+    filters.projectId.length > 0 ||
+    filters.governancePhaseId.length > 0 ||
+    filters.situation.length > 0 ||
+    filters.responsible.length > 0 ||
+    filters.client.length > 0 ||
+    filters.requester.length > 0 ||
+    filters.product.length > 0 ||
+    filters.year.length > 0 ||
+    filters.onlyWeeklyFocus;
 
   return (
-    <div className="px-8 py-6 space-y-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 bg-blue-50 rounded-xl">
-          <Building2 className="w-6 h-6 text-blue-600" />
+    <div className="space-y-6 px-8 py-6">
+      <div className="flex items-center gap-3">
+        <div className="rounded-xl bg-blue-50 p-3">
+          <Building2 className="h-6 w-6 text-blue-600" />
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Projetos por Cliente</h1>
-          <p className="text-gray-500 text-sm">Visualização organizada por cliente</p>
+          <p className="text-sm text-gray-500">
+            Agrupamento real dos projetos por cliente, usando a mesma base canônica do restante do sistema.
+          </p>
         </div>
       </div>
 
-      {projectsByClient.map(({ name, projects: clientProjects }) => {
-        const stats = getClientStats(clientProjects);
-        
-        return (
-          <div key={name} className="space-y-4">
-            {/* Client Header */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl">
-                    <Briefcase className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900">{name}</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">{stats.total} projetos</p>
-                  </div>
-                </div>
-                
-                {/* Stats */}
-                <div className="flex gap-6">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
-                    <p className="text-xs text-gray-500 mt-1">Em andamento</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
-                    <p className="text-xs text-gray-500 mt-1">Concluídos</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-gray-900">{stats.avgProgress}%</p>
-                    <p className="text-xs text-gray-500 mt-1">Progresso médio</p>
-                  </div>
-                </div>
-              </div>
+      <div className="relative">
+        <GovernanceFilters
+          filters={filters}
+          options={filterOptions}
+          onChange={(updates) => setFilters((prev) => ({ ...prev, ...updates }))}
+        />
+        {hasActiveFilters && (
+          <button
+            onClick={() => setFilters(DEFAULT_PROJECT_FILTERS)}
+            className="absolute right-8 top-4 flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-blue-600 transition-colors hover:bg-blue-50"
+          >
+            <X className="h-4 w-4" />
+            Limpar filtros
+          </button>
+        )}
+      </div>
 
-              {/* Progress Bar */}
-              <div className="mt-4">
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+      {projectsByClient.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
+          <Building2 className="mx-auto mb-3 h-12 w-12 text-gray-400" />
+          <p className="text-gray-500">Nenhum projeto encontrado para os filtros atuais.</p>
+        </div>
+      ) : (
+        projectsByClient.map(({ name, projects: clientProjects }) => {
+          const total = clientProjects.length;
+          const averageProgress =
+            total > 0
+              ? Math.round(
+                  clientProjects.reduce((sum, project) => sum + getProjectMetrics(project).progress, 0) / total
+                )
+              : 0;
+          const inProgress = clientProjects.filter((project) => {
+            const progress = getProjectMetrics(project).progress;
+            return progress > 0 && progress < 100;
+          }).length;
+          const completed = clientProjects.filter((project) => isProjectCompleted(project)).length;
+
+          return (
+            <section key={name} className="space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-3">
+                      <Briefcase className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">{name}</h2>
+                      <p className="mt-0.5 text-sm text-gray-500">{total} projetos no recorte atual</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-6">
+                    <ClientStat label="Em andamento" value={String(inProgress)} accent="text-blue-600" />
+                    <ClientStat label="Concluídos" value={String(completed)} accent="text-green-600" />
+                    <ClientStat label="Progresso médio" value={`${averageProgress}%`} accent="text-gray-900" />
+                  </div>
+                </div>
+
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all"
-                    style={{ width: `${stats.avgProgress}%` }}
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all"
+                    style={{ width: `${averageProgress}%` }}
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Projects Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {clientProjects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  onClick={() => handleEdit(project)}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      {projectsByClient.length === 0 && (
-        <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-12 text-center">
-          <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-500">Nenhum projeto encontrado</p>
-        </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {clientProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onClick={() => openProjectDetail(project.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })
       )}
+    </div>
+  );
+}
 
-      <ProjectModal
-        project={selectedProject}
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedProject(undefined);
-        }}
-        onSave={handleSave}
-      />
+function ClientStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+}) {
+  return (
+    <div className="text-center">
+      <p className={`text-2xl font-bold ${accent}`}>{value}</p>
+      <p className="mt-1 text-xs text-gray-500">{label}</p>
     </div>
   );
 }

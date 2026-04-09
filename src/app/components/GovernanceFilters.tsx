@@ -1,190 +1,260 @@
-import { Search, SlidersHorizontal } from 'lucide-react';
-import { useState } from 'react';
-import { useProjects } from '../context/ProjectContext';
+import { ReactNode, useState } from 'react';
+import {
+  ProjectFilterOptions,
+  ProjectFilterState,
+} from '../utils/projectSelectors';
+import { SearchableMultiSelect } from './filters/SearchableMultiSelect';
+import { UnifiedFilterPanel } from './filters/UnifiedFilterPanel';
 
 interface GovernanceFiltersProps {
-  searchTerm: string;
-  onSearchChange: (value: string) => void;
-  teamFilter: string;
-  onTeamFilterChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
-  phaseFilter: string;
-  onPhaseFilterChange: (value: string) => void;
-  responsibleFilter: string;
-  onResponsibleFilterChange: (value: string) => void;
-  productFilter: string;
-  onProductFilterChange: (value: string) => void;
-  yearFilter: string;
-  onYearFilterChange: (value: string) => void;
+  filters: ProjectFilterState;
+  options: ProjectFilterOptions;
+  onChange: (updates: Partial<ProjectFilterState>) => void;
+  showTeamFilter?: boolean;
+  title?: string;
+  subtitle?: string;
+  actionsSlot?: ReactNode;
+  savedViewsSlot?: ReactNode;
+  footerSlot?: ReactNode;
 }
 
 export function GovernanceFilters({
-  searchTerm,
-  onSearchChange,
-  teamFilter,
-  onTeamFilterChange,
-  statusFilter,
-  onStatusFilterChange,
-  phaseFilter,
-  onPhaseFilterChange,
-  responsibleFilter,
-  onResponsibleFilterChange,
-  productFilter,
-  onProductFilterChange,
-  yearFilter,
-  onYearFilterChange,
+  filters,
+  options,
+  onChange,
+  showTeamFilter = true,
+  title = 'Filtros',
+  subtitle = 'Refine o recorte sem perder a leitura da tela.',
+  actionsSlot,
+  savedViewsSlot,
+  footerSlot,
 }: GovernanceFiltersProps) {
-  const { projects } = useProjects();
-  const [showFilters, setShowFilters] = useState(true);
-
-  // Extract unique values
-  const teams = Array.from(new Set(projects.map(p => p.group)));
-  const statuses = ['backlog', 'pre-analysis', 'documentation', 'waiting-approval', 'construction'];
-  const statusLabels: Record<string, string> = {
-    backlog: 'Backlog',
-    'pre-analysis': 'Em análise',
-    documentation: 'Documentação',
-    'waiting-approval': 'Aguardando aprovação',
-    construction: 'Em execução',
-  };
-  const responsibles = Array.from(new Set(projects.map(p => p.responsible)));
-  const years = ['2024', '2025', '2026', '2027'];
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilterChips = [
+    ...filters.team.map((value) => ({ key: `team-${value}`, label: `Equipe: ${value}` })),
+    ...filters.projectId.map((value) => ({
+      key: `project-${value}`,
+      label: `Projeto: ${options.projects.find((project) => project.id === value)?.name || value}`,
+    })),
+    ...filters.governancePhaseId.map((value) => ({
+      key: `phase-${value}`,
+      label: `Fase: ${options.governancePhases.find((phase) => phase.id === value)?.label || value}`,
+    })),
+    ...filters.situation.map((value) => ({
+      key: `situation-${value}`,
+      label: `Situação: ${options.situations.find((item) => item.id === value)?.label || value}`,
+    })),
+    ...filters.responsible.map((value) => ({ key: `responsible-${value}`, label: `Responsável: ${value}` })),
+    ...filters.requester.map((value) => ({ key: `requester-${value}`, label: `Solicitante: ${value}` })),
+    ...filters.client.map((value) => ({ key: `client-${value}`, label: `Cliente: ${value}` })),
+    ...filters.product.map((value) => ({ key: `product-${value}`, label: `Produto: ${value}` })),
+    ...filters.year.map((value) => ({ key: `year-${value}`, label: `Ano: ${value}` })),
+    ...(filters.onlyWeeklyFocus ? [{ key: 'weekly-focus', label: 'Apenas foco da semana' }] : []),
+  ];
 
   return (
-    <div className="bg-white border-b border-gray-200">
-      {/* Search and Filter Toggle */}
-      <div className="px-8 py-4 flex items-center gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar projetos..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+    <UnifiedFilterPanel
+      title={title}
+      subtitle={subtitle}
+      expanded={showFilters}
+      onToggleExpanded={() => setShowFilters(!showFilters)}
+      activeFiltersCount={activeFilterChips.length}
+      activeFiltersSlot={
+        activeFilterChips.length > 0 ? (
+          <>
+            {activeFilterChips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+              >
+                {chip.label}
+              </span>
+            ))}
+          </>
+        ) : null
+      }
+      compactHelperText="Abra o painel para refinar o portfólio sem ocupar toda a área da tela."
+      compactByDefault
+      actionsSlot={
+        <>
+          {actionsSlot}
+        </>
+      }
+      filtersSlot={
+        showFilters ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {showTeamFilter && (
+            <FilterField label="Equipe">
+              <SearchableMultiSelect
+                value={filters.team}
+                onChange={(value) => onChange({ team: value })}
+                placeholder="Todas as equipes"
+                allLabel="Todas"
+                searchPlaceholder="Buscar equipe..."
+                options={options.teams.map((team) => ({
+                  value: team,
+                  label: team,
+                }))}
+              />
+            </FilterField>
+          )}
+
+          <FilterField label="Projeto">
+            <SearchableMultiSelect
+              value={filters.projectId}
+              onChange={(value) => onChange({ projectId: value, searchTerm: '' })}
+              placeholder="Todos os projetos"
+              allLabel="Todos"
+              searchPlaceholder="Buscar projeto..."
+              options={options.projects.map((project) => ({
+                value: project.id,
+                label: project.name,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Fase Macro">
+            <SearchableMultiSelect
+              value={filters.governancePhaseId}
+              onChange={(value) => onChange({ governancePhaseId: value })}
+              placeholder="Todas as fases"
+              allLabel="Todas"
+              searchPlaceholder="Buscar fase macro..."
+              options={options.governancePhases.map((phase) => ({
+                value: phase.id,
+                label: phase.label,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Situação">
+            <SearchableMultiSelect
+              value={filters.situation}
+              onChange={(value) => onChange({ situation: value })}
+              placeholder="Todas as situações"
+              allLabel="Todas"
+              searchPlaceholder="Buscar situação..."
+              options={options.situations.map((situation) => ({
+                value: situation.id,
+                label: situation.label,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Responsável">
+            <SearchableMultiSelect
+              value={filters.responsible}
+              onChange={(value) => onChange({ responsible: value })}
+              placeholder="Todos os responsáveis"
+              allLabel="Todos"
+              searchPlaceholder="Buscar responsável..."
+              options={options.responsibles.map((responsible) => ({
+                value: responsible,
+                label: responsible,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Solicitante">
+            <SearchableMultiSelect
+              value={filters.requester}
+              onChange={(value) => onChange({ requester: value })}
+              placeholder="Todos os solicitantes"
+              allLabel="Todos"
+              searchPlaceholder="Buscar solicitante..."
+              options={options.requesters.map((requester) => ({
+                value: requester,
+                label: requester,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Cliente">
+            <SearchableMultiSelect
+              value={filters.client}
+              onChange={(value) => onChange({ client: value })}
+              placeholder="Todos os clientes"
+              allLabel="Todos"
+              searchPlaceholder="Buscar cliente..."
+              options={options.clients.map((client) => ({
+                value: client,
+                label: client,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Produto">
+            <SearchableMultiSelect
+              value={filters.product}
+              onChange={(value) => onChange({ product: value })}
+              placeholder="Todos os produtos"
+              allLabel="Todos"
+              searchPlaceholder="Buscar produto..."
+              options={options.products.map((product) => ({
+                value: product,
+                label: product,
+              }))}
+            />
+          </FilterField>
+
+          <FilterField label="Ano">
+            <SearchableMultiSelect
+              value={filters.year}
+              onChange={(value) => onChange({ year: value })}
+              placeholder="Todos os anos"
+              allLabel="Todos"
+              searchPlaceholder="Buscar ano..."
+              options={options.years.map((year) => ({
+                value: year,
+                label: year,
+                }))}
+            />
+          </FilterField>
+
+          <FilterField label="Foco da Semana">
+            <button
+              type="button"
+              onClick={() => onChange({ onlyWeeklyFocus: !filters.onlyWeeklyFocus })}
+              className={`flex min-h-[52px] items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition-colors ${
+                filters.onlyWeeklyFocus
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <span className="font-medium">
+                {filters.onlyWeeklyFocus ? 'Mostrar somente projetos em foco' : 'Incluir todos os projetos'}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                  filters.onlyWeeklyFocus
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {filters.onlyWeeklyFocus ? 'Ativo' : 'Todos'}
+              </span>
+            </button>
+          </FilterField>
         </div>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors ${
-            showFilters
-              ? 'bg-blue-50 border-blue-200 text-blue-700'
-              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          <SlidersHorizontal className="w-5 h-5" />
-          <span className="font-medium">Filtros</span>
-        </button>
-      </div>
+        ) : null
+      }
+      savedViewsSlot={savedViewsSlot}
+      footerSlot={footerSlot}
+    />
+  );
+}
 
-      {/* Filters */}
-      {showFilters && (
-        <div className="px-8 pb-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {/* Team */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Equipe
-            </label>
-            <select
-              value={teamFilter}
-              onChange={(e) => onTeamFilterChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="Todos">Todas</option>
-              {teams.map(team => (
-                <option key={team} value={team}>{team}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="Todos">Todos</option>
-              {statuses.map(status => (
-                <option key={status} value={status}>{statusLabels[status]}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Phase */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Fase
-            </label>
-            <select
-              value={phaseFilter}
-              onChange={(e) => onPhaseFilterChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="Todos">Todas</option>
-              {statuses.map(status => (
-                <option key={status} value={status}>{statusLabels[status]}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Responsible */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Responsável
-            </label>
-            <select
-              value={responsibleFilter}
-              onChange={(e) => onResponsibleFilterChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="Todos">Todos</option>
-              {responsibles.map(responsible => (
-                <option key={responsible} value={responsible}>{responsible}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Product */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Produto
-            </label>
-            <select
-              value={productFilter}
-              onChange={(e) => onProductFilterChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="Todos">Todos</option>
-              <option value="Sistema Web">Sistema Web</option>
-              <option value="App Mobile">App Mobile</option>
-              <option value="Dashboard">Dashboard</option>
-              <option value="Portal">Portal</option>
-            </select>
-          </div>
-
-          {/* Year */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Ano
-            </label>
-            <select
-              value={yearFilter}
-              onChange={(e) => onYearFilterChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="Todos">Todos</option>
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid content-start gap-2">
+      <label className="field-label min-h-[2.25rem]">{label}</label>
+      {children}
     </div>
   );
 }

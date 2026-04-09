@@ -2,11 +2,34 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, Plus, Trash2, Edit2 } from 'lucide-react';
 import { Phase, Milestone } from '../../types';
 import { MilestoneListItem } from './MilestoneListItem';
+import { normalizeProjectRoleKey } from '../../utils/phaseOwnership';
 
 interface EAPStructureEditorProps {
   phases: Phase[];
   setPhases: (phases: Phase[]) => void;
 }
+
+const normalizeMilestones = (milestones: Milestone[] = []): Milestone[] =>
+  milestones
+    .map((milestone) => ({
+      ...milestone,
+      tasks: milestone.tasks || [],
+    }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((milestone, index) => ({
+      ...milestone,
+      order: index + 1,
+    }));
+
+const normalizePhases = (phases: Phase[]): Phase[] =>
+  [...phases]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((phase, index) => ({
+      ...phase,
+      order: index + 1,
+      phaseType: 'execution',
+      milestones: normalizeMilestones(phase.milestones || []),
+    }));
 
 export function EAPStructureEditor({ phases, setPhases }: EAPStructureEditorProps) {
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(
@@ -14,6 +37,8 @@ export function EAPStructureEditor({ phases, setPhases }: EAPStructureEditorProp
   );
   const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
   const [editingPhaseName, setEditingPhaseName] = useState('');
+  const [editingPhaseDescription, setEditingPhaseDescription] = useState('');
+  const [editingExpectedRoleLabel, setEditingExpectedRoleLabel] = useState('');
 
   const togglePhaseExpand = (phaseId: string) => {
     const newExpanded = new Set(expandedPhases);
@@ -28,44 +53,54 @@ export function EAPStructureEditor({ phases, setPhases }: EAPStructureEditorProp
   const startEditPhase = (phase: Phase) => {
     setEditingPhaseId(phase.id);
     setEditingPhaseName(phase.name);
+    setEditingPhaseDescription(phase.description || '');
+    setEditingExpectedRoleLabel(phase.expectedRoleLabel || '');
   };
 
   const saveEditPhase = (phaseId: string) => {
     setPhases(
-      phases.map(p =>
-        p.id === phaseId ? { ...p, name: editingPhaseName } : p
+      normalizePhases(
+        phases.map(p =>
+          p.id === phaseId
+            ? {
+                ...p,
+                name: editingPhaseName.trim(),
+                description: editingPhaseDescription.trim(),
+                expectedRoleLabel: editingExpectedRoleLabel.trim() || undefined,
+                expectedRoleKey: editingExpectedRoleLabel.trim()
+                  ? normalizeProjectRoleKey(editingExpectedRoleLabel)
+                  : undefined,
+              }
+            : p
+        )
       )
     );
     setEditingPhaseId(null);
   };
 
   const deletePhase = (phaseId: string) => {
-    setPhases(phases.filter(p => p.id !== phaseId));
+    setPhases(normalizePhases(phases.filter(p => p.id !== phaseId)));
   };
 
   const movePhaseUp = (idx: number) => {
     if (idx > 0) {
-      const newPhases = [...phases];
+      const newPhases = [...normalizePhases(phases)];
       [newPhases[idx], newPhases[idx - 1]] = [newPhases[idx - 1], newPhases[idx]];
-      newPhases[idx].order = idx + 1;
-      newPhases[idx - 1].order = idx;
-      setPhases(newPhases);
+      setPhases(normalizePhases(newPhases));
     }
   };
 
   const movePhaseDown = (idx: number) => {
     if (idx < phases.length - 1) {
-      const newPhases = [...phases];
+      const newPhases = [...normalizePhases(phases)];
       [newPhases[idx], newPhases[idx + 1]] = [newPhases[idx + 1], newPhases[idx]];
-      newPhases[idx].order = idx + 1;
-      newPhases[idx + 1].order = idx + 2;
-      setPhases(newPhases);
+      setPhases(normalizePhases(newPhases));
     }
   };
 
   const addMilestoneToPhase = (phaseId: string) => {
     setPhases(
-      phases.map(p => {
+      normalizePhases(phases.map(p => {
         if (p.id === phaseId) {
           const newMilestone: Milestone = {
             id: `milestone-${Date.now()}`,
@@ -81,77 +116,73 @@ export function EAPStructureEditor({ phases, setPhases }: EAPStructureEditorProp
           };
           return {
             ...p,
-            milestones: [...(p.milestones || []), newMilestone],
+            milestones: normalizeMilestones([...(p.milestones || []), newMilestone]),
           };
         }
         return p;
-      })
+      }))
     );
   };
 
   const updateMilestone = (phaseId: string, milestone: Milestone) => {
     setPhases(
-      phases.map(p => {
+      normalizePhases(phases.map(p => {
         if (p.id === phaseId) {
           return {
             ...p,
-            milestones: p.milestones.map(m =>
+            milestones: normalizeMilestones(p.milestones.map(m =>
               m.id === milestone.id ? milestone : m
-            ),
+            )),
           };
         }
         return p;
-      })
+      }))
     );
   };
 
   const deleteMilestone = (phaseId: string, milestoneId: string) => {
     setPhases(
-      phases.map(p => {
+      normalizePhases(phases.map(p => {
         if (p.id === phaseId) {
           return {
             ...p,
-            milestones: p.milestones.filter(m => m.id !== milestoneId),
+            milestones: normalizeMilestones(p.milestones.filter(m => m.id !== milestoneId)),
           };
         }
         return p;
-      })
+      }))
     );
   };
 
   const moveMilestoneUp = (phaseId: string, idx: number) => {
     setPhases(
-      phases.map(p => {
+      normalizePhases(phases.map(p => {
         if (p.id === phaseId && idx > 0) {
-          const newMilestones = [...p.milestones];
+          const newMilestones = [...normalizeMilestones(p.milestones)];
           [newMilestones[idx], newMilestones[idx - 1]] = [
             newMilestones[idx - 1],
             newMilestones[idx],
           ];
-          newMilestones[idx].order = idx + 1;
-          newMilestones[idx - 1].order = idx;
-          return { ...p, milestones: newMilestones };
+          return { ...p, milestones: normalizeMilestones(newMilestones) };
         }
         return p;
-      })
+      }))
     );
   };
 
   const moveMilestoneDown = (phaseId: string, idx: number) => {
     setPhases(
-      phases.map(p => {
+      normalizePhases(phases.map(p => {
         if (p.id === phaseId && idx < p.milestones.length - 1) {
-          const newMilestones = [...p.milestones];
+          const newMilestones = [...normalizeMilestones(p.milestones)];
           [newMilestones[idx], newMilestones[idx + 1]] = [
             newMilestones[idx + 1],
             newMilestones[idx],
           ];
-          newMilestones[idx].order = idx + 1;
-          newMilestones[idx + 1].order = idx + 2;
-          return { ...p, milestones: newMilestones };
+          return { ...p, milestones: normalizeMilestones(newMilestones) };
         }
         return p;
-      })
+      }))
     );
   };
 
@@ -182,20 +213,64 @@ export function EAPStructureEditor({ phases, setPhases }: EAPStructureEditorProp
               </button>
 
               {editingPhaseId === phase.id ? (
-                <input
-                  autoFocus
-                  value={editingPhaseName}
-                  onChange={(e) => setEditingPhaseName(e.target.value)}
-                  onBlur={() => saveEditPhase(phase.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveEditPhase(phase.id);
-                    if (e.key === 'Escape') setEditingPhaseId(null);
-                  }}
-                  className="flex-1 px-2 py-1 border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
+                <div className="flex-1 space-y-2">
+                  <input
+                    autoFocus
+                    value={editingPhaseName}
+                    onChange={(e) => setEditingPhaseName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveEditPhase(phase.id);
+                      if (e.key === 'Escape') setEditingPhaseId(null);
+                    }}
+                    className="w-full px-2 py-1 border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <textarea
+                    value={editingPhaseDescription}
+                    onChange={(e) => setEditingPhaseDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Descricao da fase"
+                    className="w-full px-2 py-1 border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <input
+                    value={editingExpectedRoleLabel}
+                    onChange={(e) => setEditingExpectedRoleLabel(e.target.value)}
+                    placeholder="Papel / funcao esperada da fase"
+                    className="w-full px-2 py-1 border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => saveEditPhase(phase.id)}
+                      className="px-3 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition-colors"
+                    >
+                      Salvar fase
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPhaseId(null)}
+                      className="px-3 py-1 border border-gray-300 rounded text-xs font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900">{phase.name}</p>
+                  {phase.description && (
+                    <p className="text-xs text-gray-500 mt-0.5">{phase.description}</p>
+                  )}
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {phase.expectedRoleLabel ? (
+                      <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                        Papel esperado: {phase.expectedRoleLabel}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                        Papel nao definido
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500">{phase.milestones.length} marcos</p>
                 </div>
               )}

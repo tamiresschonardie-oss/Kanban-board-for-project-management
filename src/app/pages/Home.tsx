@@ -1,481 +1,803 @@
-import { useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { CheckCircle2, AlertCircle, Calendar, ArrowRight, Plus, FolderKanban, Bell, Filter, X, CheckSquare } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  BrainCircuit,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  FolderKanban,
+  LayoutDashboard,
+  ShieldAlert,
+  TimerReset,
+  Users,
+} from 'lucide-react';
 import { useProjects } from '../context/ProjectContext';
 import { useAdmin } from '../context/AdminContext';
-import { useLoadTestData } from '../hooks/useLoadTestData';
-import { WBSTask } from '../types';
-import { TaskDetailPanel } from '../components/TaskDetailPanel';
+import { formatDurationSummary } from '../utils/timeTracking';
+import { useTasks } from '../context/TaskContext';
+import { useSchedule } from '../context/ScheduleContext';
 import { TaskModal } from '../components/TaskModal';
+import { useProjectDetailNavigation } from '../hooks/useProjectDetailNavigation';
+import {
+  getProjectFilterYear,
+  getProjectMetrics,
+  getProjectsCompletedByYear,
+  getRecentProjectActivities,
+  getWorkspaceProjects,
+  isProjectDueSoon,
+  isProjectOverdue,
+} from '../utils/projectSelectors';
+import { isTaskDoneStatus, isTaskInProgressStatus, normalizeTaskStatus } from '../utils/taskStatus';
+import {
+  getTaskOperationalStats,
+  getTasksAssignedToUser,
+} from '../selectors/taskSelectors';
+import { canAccessGovernance, canManageOperationalPriority, canManageWeeklyFocus, isPmoUser } from '../utils/permissions';
+import { getPrimaryUserTeam, getUserTeams } from '../utils/userTeams';
+import { buildProjectHealth } from '../utils/dashboardInsights';
 
 export function Home() {
   const navigate = useNavigate();
+  const { openProjectDetail } = useProjectDetailNavigation();
   const { projects } = useProjects();
-  const { teams, notifications, markNotificationAsRead } = useAdmin();
-  const { loadTestData } = useLoadTestData();
-  
-  const [selectedTask, setSelectedTask] = useState<(WBSTask & { projectName: string; phaseName: string; milestoneName: string }) | null>(null);
-  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [filterDate, setFilterDate] = useState<'all' | 'today' | 'week' | 'overdue'>('all');
-  const [filterProject, setFilterProject] = useState<string>('all');
+  const { currentUser, teams, notifications, skills, getFavoriteEntityIds } = useAdmin();
+  const { allTasks } = useTasks();
+  const { getEventsForUser } = useSchedule();
 
-  // Mock current user - in real app, would come from auth
-  const currentUser = {
-    name: 'Guilherme Drehmer',
-    firstName: 'Guilherme',
-  };
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
 
-  const today = new Date();
-  const todayFormatted = today.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  });
+  const currentUserTasks = useMemo(
+    () => getTasksAssignedToUser(allTasks, currentUser),
+    [allTasks, currentUser]
+  );
+  const currentTask = useMemo(
+    () => allTasks.find((task) => task.id === selectedTaskId) || null,
+    [allTasks, selectedTaskId]
+  );
 
-  // Flatten all tasks
-  const allTasks: Array<WBSTask & { projectName: string; phaseName: string; milestoneName: string }> = [];
-  projects.forEach((project) => {
-    if (project.phases) {
-      project.phases.forEach((phase) => {
-        phase.milestones.forEach((milestone) => {
-          milestone.tasks.forEach((task) => {
-            if (task.assignee === currentUser.name) {
-              allTasks.push({
-                ...task,
-                projectName: project.name,
-                phaseName: phase.name,
-                milestoneName: milestone.name,
-              });
-            }
-          });
+  const projectStats = useMemo(() => {
+    const inProgress = projects.filter((project) => {
+      const metrics = getProjectMetrics(project);
+      return !isProjectOverdue(project) && metrics.progress > 0 && metrics.progress < 100;
+    }).length;
+    const overdue = projects.filter((project) => isProjectOverdue(project)).length;
+    const dueSoon = projects.filter((project) => isProjectDueSoon(project)).length;
+    const currentYear = String(new Date().getFullYear());
+    const completedByYear = getProjectsCompletedByYear(projects);
+
+    return {
+      total: projects.length,
+      inProgress,
+      overdue,
+      dueSoon,
+      completedThisYear: completedByYear[currentYear] || 0,
+    };
+  }, [projects]);
+
+  const taskStats = useMemo(() => getTaskOperationalStats(currentUserTasks), [currentUserTasks]);
+  const focusItems = useMemo(() => {
+    const now = Date.now();
+    const todayLabel = new Date().toDateString();
+
+    return currentUserTasks
+      .filter((task) => !isTaskDoneStatus(task.status))
+      .map((task) => {
+        const dueTimestamp = task.dueDate ? new Date(task.dueDate).getTime() : undefined;
+        const isOverdue = !!dueTimestamp && dueTimestamp < now;
+        const isToday = !!task.dueDate && new Date(task.dueDate).toDateString() === todayLabel;
+        const isCritical =
+          task.priority === 'high' || task.isWeeklyFocus || task.isOperationallyPrioritized;
+        const isBlocked = !!task.isDependencyBlocked;
+
+        let reason = 'Fila operacional';
+        if (isOverdue) reason = 'Vencida';
+        else if (isToday) reason = 'Hoje';
+        else if (isBlocked) reason = 'Bloqueada';
+        else if (isCritical) reason = 'Crítica';
+
+        return {
+          id: task.id,
+          title: task.title,
+          projectName: task.projectName,
+          dueDate: task.dueDate,
+          reason,
+          score:
+            (isOverdue ? 40 : 0) +
+            (isToday ? 30 : 0) +
+            (isBlocked ? 25 : 0) +
+            (isCritical ? 20 : 0) +
+            (isTaskInProgressStatus(task.status) ? 5 : 0),
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || (a.dueDate || '').localeCompare(b.dueDate || ''))
+      .slice(0, 6);
+  }, [currentUserTasks]);
+  const projectHealth = useMemo(
+    () => buildProjectHealth(projects, allTasks),
+    [projects, allTasks]
+  );
+  const operationalAlerts = useMemo(() => {
+    const alerts: Array<{
+      id: string;
+      title: string;
+      description: string;
+      severity: 'critical' | 'attention';
+      action?: () => void;
+    }> = [];
+
+    projectHealth
+      .filter((item) => item.health !== 'healthy')
+      .slice(0, 3)
+      .forEach((item) => {
+        alerts.push({
+          id: `project-risk-${item.projectId}`,
+          title: `Projeto em ${item.health === 'critical' ? 'nível crítico' : 'atenção'}`,
+          description: `${item.projectName} tem ${item.overdueTasks} tarefas vencidas, ${item.blockedTasks} bloqueadas e ${item.delayedPhases} fases atrasadas.`,
+          severity: item.health === 'critical' ? 'critical' : 'attention',
+          action: () => openProjectDetail(item.projectId),
         });
       });
+
+    currentUserTasks
+      .filter((task) => task.isDependencyBlocked)
+      .slice(0, 2)
+      .forEach((task) => {
+        alerts.push({
+          id: `blocked-task-${task.id}`,
+          title: 'Tarefa travada por dependência',
+          description: `${task.title}${task.dependencyBlockedReason ? ` • ${task.dependencyBlockedReason}` : ''}`,
+          severity: 'attention',
+          action: () => setSelectedTaskId(task.id),
+        });
+      });
+
+    const meetings = currentUser ? getEventsForUser(currentUser.id).filter((event) => event.status === 'active') : [];
+    const agendaConflict = meetings.find((event, index) =>
+      meetings.some((candidate, candidateIndex) => {
+        if (index >= candidateIndex || event.date !== candidate.date) return false;
+        return !(event.endTime <= candidate.startTime || candidate.endTime <= event.startTime);
+      })
+    );
+    if (agendaConflict) {
+      alerts.push({
+        id: `agenda-conflict-${agendaConflict.id}`,
+        title: 'Conflito de agenda detectado',
+        description: `${agendaConflict.title} conflita com outro compromisso em ${new Date(agendaConflict.date).toLocaleDateString('pt-BR')}.`,
+        severity: 'attention',
+        action: () => navigate('/agenda'),
+      });
     }
-  });
 
-  // Apply filters
-  const filteredTasks = allTasks.filter((task) => {
-    // Filter by date
-    if (filterDate === 'today') {
-      if (!task.dueDate) return false;
-      const dueDate = new Date(task.dueDate);
-      if (
-        dueDate.getDate() !== today.getDate() ||
-        dueDate.getMonth() !== today.getMonth() ||
-        dueDate.getFullYear() !== today.getFullYear()
-      ) {
-        return false;
-      }
-    } else if (filterDate === 'week') {
-      if (!task.dueDate) return false;
-      const dueDate = new Date(task.dueDate);
-      const weekFromNow = new Date(today);
-      weekFromNow.setDate(weekFromNow.getDate() + 7);
-      if (dueDate < today || dueDate > weekFromNow) return false;
-    } else if (filterDate === 'overdue') {
-      if (!task.dueDate || task.status === 'done') return false;
-      if (new Date(task.dueDate) >= today) return false;
+    const inProgressByUser = currentUserTasks.filter((task) => isTaskInProgressStatus(task.status)).length;
+    const overdueByUser = currentUserTasks.filter(
+      (task) => !isTaskDoneStatus(task.status) && task.dueDate && new Date(task.dueDate).getTime() < Date.now()
+    ).length;
+    if (inProgressByUser >= 6 || overdueByUser >= 3) {
+      alerts.push({
+        id: 'workload-overload',
+        title: 'Sobrecarga operacional',
+        description: `Você está com ${inProgressByUser} tarefas em andamento e ${overdueByUser} atrasadas.`,
+        severity: 'critical',
+        action: () => navigate('/my-tasks'),
+      });
     }
 
-    // Filter by project
-    if (filterProject !== 'all' && task.projectName !== filterProject) {
-      return false;
+    return alerts.slice(0, 6);
+  }, [projectHealth, currentUserTasks, currentUser, getEventsForUser, openProjectDetail, navigate]);
+  const unreadNotifications = useMemo(
+    () => notifications.filter((notification) => notification.userId === currentUser?.id && !notification.isRead).slice(0, 4),
+    [notifications, currentUser?.id]
+  );
+  const quickStats = useMemo(() => {
+    const blocked = currentUserTasks.filter((task) => task.isDependencyBlocked).length;
+    const critical = currentUserTasks.filter(
+      (task) => task.priority === 'high' || task.isWeeklyFocus || task.isOperationallyPrioritized
+    ).length;
+    return { blocked, critical };
+  }, [currentUserTasks]);
+  const recentActivities = useMemo(() => getRecentProjectActivities(projects, 8), [projects]);
+  const completedByYear = useMemo(
+    () =>
+      Object.entries(getProjectsCompletedByYear(projects))
+        .sort((a, b) => Number(b[0]) - Number(a[0]))
+        .slice(0, 4),
+    [projects]
+  );
+
+  const canAccessAdmin = isPmoUser(currentUser);
+  const canSeeGovernance = canAccessGovernance(currentUser);
+  const canSeeOperationalPriority =
+    canManageOperationalPriority(currentUser) || canManageWeeklyFocus(currentUser);
+  const visibleTeams = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'user') {
+      const userTeams = new Set(getUserTeams(currentUser));
+      return teams.filter((team) => userTeams.has(team.name));
     }
+    return teams;
+  }, [teams, currentUser]);
 
-    return true;
-  });
-
-  // Calculate stats
-  const stats = {
-    completed: allTasks.filter((t) => t.status === 'done').length,
-    overdue: allTasks.filter((t) => {
-      if (!t.dueDate || t.status === 'done') return false;
-      return new Date(t.dueDate) < today;
-    }).length,
-    today: allTasks.filter((t) => {
-      if (!t.dueDate) return false;
-      const dueDate = new Date(t.dueDate);
-      return (
-        dueDate.getDate() === today.getDate() &&
-        dueDate.getMonth() === today.getMonth() &&
-        dueDate.getFullYear() === today.getFullYear()
-      );
-    }).length,
-    upcoming: allTasks.filter((t) => {
-      if (!t.dueDate || t.status === 'done') return false;
-      const dueDate = new Date(t.dueDate);
-      const weekFromNow = new Date(today);
-      weekFromNow.setDate(weekFromNow.getDate() + 7);
-      return dueDate > today && dueDate <= weekFromNow;
-    }).length,
-  };
-
-  const handleTaskClick = (task: typeof allTasks[0]) => {
-    setSelectedTask(task);
-    setIsDetailPanelOpen(true);
-  };
-
-  const getPriorityColor = (priority?: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-600 bg-red-50 border-red-200';
-      case 'medium':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'low':
-        return 'text-green-600 bg-green-50 border-green-200';
-      default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'done':
-        return 'bg-green-100 text-green-700';
-      case 'doing':
-        return 'bg-blue-100 text-blue-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  // Unique projects for filter
-  const uniqueProjects = Array.from(new Set(allTasks.map((t) => t.projectName)));
-
-  // Unread notifications count
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const favoriteProjectIds = useMemo(() => getFavoriteEntityIds('project'), [getFavoriteEntityIds]);
+  const favoriteTaskIds = useMemo(() => getFavoriteEntityIds('task'), [getFavoriteEntityIds]);
+  const favoriteSkillIds = useMemo(() => getFavoriteEntityIds('skill'), [getFavoriteEntityIds]);
+  const favoriteProjects = useMemo(
+    () =>
+      favoriteProjectIds
+        .map((id) => projects.find((project) => project.id === id))
+        .filter((project): project is NonNullable<typeof project> => Boolean(project))
+        .slice(0, 4),
+    [favoriteProjectIds, projects]
+  );
+  const favoriteTasks = useMemo(
+    () =>
+      favoriteTaskIds
+        .map((id) => allTasks.find((task) => task.id === id))
+        .filter((task): task is NonNullable<typeof task> => Boolean(task))
+        .slice(0, 4),
+    [favoriteTaskIds, allTasks]
+  );
+  const favoriteSkills = useMemo(
+    () =>
+      favoriteSkillIds
+        .map((id) => skills.find((skill) => skill.id === id))
+        .filter((skill): skill is NonNullable<typeof skill> => Boolean(skill))
+        .slice(0, 4),
+    [favoriteSkillIds, skills]
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Olá, {currentUser.firstName}!
+    <div className="app-shell">
+      <div className="page-shell space-y-8">
+        <div className="page-header gap-6">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
+              Painel inicial
             </h1>
-            <p className="text-gray-600 capitalize">{todayFormatted}</p>
+            <p className="mt-2 text-sm text-slate-500 md:text-base">
+              Visão consolidada da operação para {currentUser?.name || 'usuário atual'}.
+            </p>
           </div>
-          
-          {/* Notifications Button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-3 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Bell className="w-6 h-6 text-gray-700" />
-              {unreadCount > 0 && (
-                <span className="absolute top-2 right-2 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
 
-            {/* Notifications Panel */}
-            {showNotifications && (
-              <div className="absolute right-0 top-14 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-[500px] overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Notificações</h3>
-                  <button onClick={() => setShowNotifications(false)}>
-                    <X className="w-5 h-5 text-gray-500" />
-                  </button>
-                </div>
-                <div className="overflow-y-auto flex-1">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">
-                      <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p>Nenhuma notificação</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-gray-100">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`p-4 hover:bg-gray-50 cursor-pointer ${
-                            !notification.read ? 'bg-blue-50' : ''
-                          }`}
-                          onClick={() => markNotificationAsRead(notification.id)}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">
-                                {notification.title}
-                              </p>
-                              <p className="text-sm text-gray-600 mt-1">
-                                {notification.message}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-2">
-                                {new Date(notification.timestamp).toLocaleString('pt-BR')}
-                              </p>
-                            </div>
-                            {!notification.read && (
-                              <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-600">EXECUTADAS</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{stats.completed}</p>
-            <p className="text-sm text-gray-500 mt-1">Esta semana</p>
-          </div>
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <StatCard label="Projetos em andamento" value={String(projectStats.inProgress)} icon={<LayoutDashboard className="w-5 h-5 text-blue-600" />} />
+          <StatCard label="Projetos atrasados" value={String(projectStats.overdue)} icon={<AlertCircle className="w-5 h-5 text-red-600" />} />
+          <StatCard label="Próximos do prazo" value={String(projectStats.dueSoon)} icon={<CalendarClock className="w-5 h-5 text-orange-600" />} />
+          <StatCard label={`Concluídos em ${new Date().getFullYear()}`} value={String(projectStats.completedThisYear)} icon={<CheckCircle2 className="w-5 h-5 text-green-600" />} />
+          <StatCard label="Tempo apontado nas minhas tarefas" value={`${taskStats.trackedHours}h`} icon={<TimerReset className="w-5 h-5 text-purple-600" />} />
+        </section>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-600">ATRASADAS</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{stats.overdue}</p>
-            <p className="text-sm text-gray-500 mt-1">Requer atenção</p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Calendar className="w-5 h-5 text-orange-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-600">HOJE</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{stats.today}</p>
-            <p className="text-sm text-gray-500 mt-1">Para concluir</p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Calendar className="w-5 h-5 text-blue-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-600">PRÓXIMAS</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{stats.upcoming}</p>
-            <p className="text-sm text-gray-500 mt-1">Esta semana</p>
-          </div>
-        </div>
-
-        {/* Main Content: Tasks and Flows */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Minhas Tarefas - 2/3 width */}
-          <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Minhas Tarefas</h2>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => navigate('/my-tasks')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-500/30 font-medium"
-                >
-                  IR PARA LÁ
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => setIsTaskModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nova Tarefa
-                </button>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <Filter className="w-5 h-5 text-gray-500" />
-                
-                <select
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value as any)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todas as datas</option>
-                  <option value="today">Hoje</option>
-                  <option value="week">Esta semana</option>
-                  <option value="overdue">Atrasadas</option>
-                </select>
-
-                <select
-                  value={filterProject}
-                  onChange={(e) => setFilterProject(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todos os projetos</option>
-                  {uniqueProjects.map((project) => (
-                    <option key={project} value={project}>
-                      {project}
-                    </option>
-                  ))}
-                </select>
-
-                {(filterDate !== 'all' || filterProject !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setFilterDate('all');
-                      setFilterProject('all');
-                    }}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Tasks List */}
-            <div className="space-y-3">
-              {filteredTasks.length === 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                  <CheckCircle2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Nenhuma tarefa encontrada
-                  </h3>
-                  <p className="text-gray-500">
-                    {filterDate !== 'all' || filterProject !== 'all'
-                      ? 'Ajuste os filtros para ver mais tarefas'
-                      : 'Você não possui tarefas pendentes'}
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,2fr)_360px]">
+          <div className="space-y-8">
+            <section className="section-card">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Foco do dia</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    O que precisa de ação agora: vencidas, de hoje, críticas e travadas.
                   </p>
                 </div>
-              ) : (
-                filteredTasks.map((task) => {
-                  const completedSubtasks = task.subtasks.filter((st) => st.completed).length;
-                  const totalSubtasks = task.subtasks.length;
+                <button
+                  onClick={() => navigate('/my-tasks')}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-950"
+                >
+                  Abrir minhas tarefas
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
 
-                  return (
-                    <div
-                      key={task.id}
-                      className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => handleTaskClick(task)}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium text-gray-900">{task.title}</h3>
-                            {task.priority && (
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getPriorityColor(
-                                  task.priority
-                                )}`}
-                              >
-                                {task.priority === 'high' && 'Alta'}
-                                {task.priority === 'medium' && 'Média'}
-                                {task.priority === 'low' && 'Baixa'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span className="font-medium text-gray-700">{task.projectName}</span>
-                            <span>•</span>
-                            <span>{task.milestoneName}</span>
-                          </div>
-                        </div>
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                            task.status
-                          )}`}
-                        >
-                          {task.status === 'todo' && 'A Fazer'}
-                          {task.status === 'doing' && 'Fazendo'}
-                          {task.status === 'done' && 'Concluído'}
-                        </span>
-                      </div>
+              <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+                <InlineStat label="Vencidas" value={String(taskStats.overdue)} />
+                <InlineStat label="Hoje" value={String(taskStats.dueToday)} />
+                <InlineStat label="Críticas" value={String(quickStats.critical)} />
+                <InlineStat label="Bloqueadas" value={String(quickStats.blocked)} />
+              </div>
 
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        {task.dueDate && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
-                          </div>
-                        )}
-                        {totalSubtasks > 0 && (
-                          <div className="flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>
-                              {completedSubtasks}/{totalSubtasks}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Meus Fluxos - 1/3 width */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Meus Fluxos</h2>
-            </div>
-
-            <div className="space-y-3">
-              {/* Workspaces */}
-              {teams.slice(0, 3).map((team) => {
-                const teamProjects = projects.filter((p) => p.group === team.name);
-                return (
-                  <div
-                    key={team.id}
-                    className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/workspace/${team.name}`)}
+              <div className="space-y-3">
+                {focusItems.length > 0 ? focusItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedTaskId(item.id)}
+                    className="interactive-surface w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-4 text-left"
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: team.color }}
-                      >
-                        <FolderKanban className="w-5 h-5 text-white" />
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{item.title}</p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {item.projectName || 'Tarefa operacional'}
+                        </p>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{team.name} - Tarefas</p>
-                        <p className="text-sm text-gray-500">{teamProjects.length} Cards</p>
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        item.reason === 'Vencida'
+                          ? 'bg-red-100 text-red-700'
+                          : item.reason === 'Bloqueada'
+                            ? 'bg-amber-100 text-amber-700'
+                            : item.reason === 'Crítica'
+                              ? 'bg-violet-100 text-violet-700'
+                              : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {item.reason}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                      <span>Prazo: {item.dueDate ? new Date(item.dueDate).toLocaleDateString('pt-BR') : '—'}</span>
+                    </div>
+                  </button>
+                )) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+                    Nenhuma tarefa crítica no momento. A fila está sob controle.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Alertas automáticos</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Problemas detectados automaticamente a partir de prazo, dependência, agenda e carga.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {operationalAlerts.length > 0 ? operationalAlerts.map((alert) => (
+                  <button
+                    key={alert.id}
+                    onClick={alert.action}
+                    className={`block w-full rounded-2xl border px-4 py-4 text-left ${
+                      alert.severity === 'critical'
+                        ? 'border-red-200 bg-red-50 hover:bg-red-50/80'
+                        : 'border-amber-200 bg-amber-50 hover:bg-amber-50/80'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 rounded-xl p-2 ${
+                        alert.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {alert.severity === 'critical' ? (
+                          <ShieldAlert className="h-4 w-4" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold ${
+                          alert.severity === 'critical' ? 'text-red-950' : 'text-amber-950'
+                        }`}>
+                          {alert.title}
+                        </p>
+                        <p className={`mt-1 text-sm ${
+                          alert.severity === 'critical' ? 'text-red-800' : 'text-amber-800'
+                        }`}>
+                          {alert.description}
+                        </p>
                       </div>
                     </div>
+                  </button>
+                )) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+                    Nenhum alerta operacional relevante no momento.
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Ações rápidas</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Menos cliques para entrar nos fluxos mais frequentes do dia.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {canSeeGovernance && (
+                  <ShortcutCard title="Governança" description="Fluxo macro dos projetos" onClick={() => navigate('/governance')} />
+                )}
+                {canSeeGovernance && (
+                  <ShortcutCard title="Habilidades" description="Hub estratégico das capacidades" onClick={() => navigate('/governance/skills')} />
+                )}
+                <ShortcutCard title="Minhas tarefas" description="Execução operacional individual" onClick={() => navigate('/my-tasks')} />
+                <ShortcutCard title="Nova tarefa" description="Captura rápida para sua fila" onClick={() => setIsCreatingTask(true)} />
+                <ShortcutCard title="Gantt geral" description="Cronogramas reais dos projetos" onClick={() => navigate('/gantt')} />
+                <ShortcutCard title="Workspace principal" description="Kanban pai com todos os projetos" onClick={() => navigate('/workspace')} />
+                {canSeeOperationalPriority && (
+                  <ShortcutCard title="Priorização" description="Fila oficial de projetos e tarefas" onClick={() => navigate('/operational-priority')} />
+                )}
+                {canAccessAdmin ? (
+                  <ShortcutCard title="Administração" description="Cadastros, templates e usuários" onClick={() => navigate('/admin')} />
+                ) : (
+                  <ShortcutCard
+                    title={`Workspace ${getPrimaryUserTeam(currentUser) || ''}`}
+                    description="Recorte principal da sua equipe"
+                    onClick={() => navigate(`/workspace/${getPrimaryUserTeam(currentUser) || ''}`)}
+                  />
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Acesso rápido</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Itens favoritos para retomar trabalho sem procurar de novo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <FavoriteBucket
+                  title="Projetos"
+                  emptyMessage="Marque projetos com estrela no Kanban para tê-los sempre à mão."
+                  items={favoriteProjects.map((project) => ({
+                    id: project.id,
+                    title: project.name,
+                    subtitle: project.responsible || 'Sem responsável',
+                    onClick: () => openProjectDetail(project.id),
+                    icon: <FolderKanban className="h-4 w-4 text-blue-600" />,
+                  }))}
+                />
+                <FavoriteBucket
+                  title="Tarefas"
+                  emptyMessage="Favoritando uma tarefa no card ela aparece aqui automaticamente."
+                  items={favoriteTasks.map((task) => ({
+                    id: task.id,
+                    title: task.title,
+                    subtitle: task.projectName || 'Fila operacional',
+                    onClick: () => setSelectedTaskId(task.id),
+                    icon: <LayoutDashboard className="h-4 w-4 text-violet-600" />,
+                  }))}
+                />
+                <FavoriteBucket
+                  title="Habilidades"
+                  emptyMessage="Use a estrela na tela de habilidades para montar seu atalho estratégico."
+                  items={favoriteSkills.map((skill) => ({
+                    id: skill.id,
+                    title: skill.name,
+                    subtitle: skill.area || 'Área não definida',
+                    onClick: () => navigate(`/governance/skills/${skill.id}`),
+                    icon: <BrainCircuit className="h-4 w-4 text-emerald-600" />,
+                  }))}
+                />
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Minhas tarefas prioritárias</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Lista operacional baseada nas tarefas realmente atribuídas ao usuário atual.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('/my-tasks')}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-950"
+                >
+                  Ver fluxo completo
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4 mb-5">
+                <InlineStat label="Em andamento" value={String(taskStats.inProgress)} />
+                <InlineStat label="Atrasadas" value={String(taskStats.overdue)} />
+                <InlineStat label="Hoje" value={String(taskStats.dueToday)} />
+                <InlineStat label="Próximas" value={String(taskStats.upcoming)} />
+              </div>
+
+              <div className="space-y-3">
+                {currentUserTasks.slice(0, 6).map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => setSelectedTaskId(task.id)}
+                    className="interactive-surface w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-4 text-left"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{task.title}</p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {task.projectName || 'Tarefa operacional'} {task.milestoneName ? `• ${task.milestoneName}` : ''}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        {normalizeTaskStatus(task.status) === 'done'
+                          ? 'Concluída'
+                          : normalizeTaskStatus(task.status) === 'blocked'
+                            ? 'Bloqueada'
+                            : normalizeTaskStatus(task.status) === 'in_progress'
+                              ? 'Em andamento'
+                              : 'Não iniciada'}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                      <span>Prazo: {task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : '—'}</span>
+                      <span>Tempo: {formatDurationSummary(task.totalTimeSeconds || 0)}</span>
+                    </div>
+                  </button>
+                ))}
+                {currentUserTasks.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+                    Nenhuma tarefa atribuída ao usuário atual.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Workspaces</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Recortes reais por equipe, respeitando perfil e permissões.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {visibleTeams.map((team) => {
+                  const workspaceProjects = getWorkspaceProjects(projects, team.name);
+                  const overdueCount = workspaceProjects.filter((project) => isProjectOverdue(project)).length;
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => navigate(`/workspace/${team.name}`)}
+                      className="interactive-surface rounded-[24px] border border-slate-200/80 bg-white/75 p-4 text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{ backgroundColor: team.color }}
+                        >
+                          <Users className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{team.name}</p>
+                          <p className="text-sm text-slate-500">{workspaceProjects.length} projetos</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+                        <span>Atrasados: {overdueCount}</span>
+                        <span>Ir para workspace</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           </div>
+
+          <aside className="space-y-8">
+            <section className="section-card">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock3 className="w-4 h-4 text-gray-400" />
+                <h2 className="text-lg font-semibold text-gray-900">Central de alertas</h2>
+              </div>
+              <div className="space-y-3">
+                {unreadNotifications.length > 0 ? (
+                  unreadNotifications.map((notification) => (
+                    <button
+                      key={notification.id}
+                      onClick={() => navigate(notification.linkTo || '/my-tasks')}
+                      className="interactive-surface block w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-left"
+                    >
+                      <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                      <p className="mt-1 text-sm text-gray-500">{notification.description}</p>
+                      <p className="mt-2 text-xs text-gray-400">
+                        {new Date(notification.createdAt).toLocaleString('pt-BR')}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">Nenhum alerta pendente para o usuário atual.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="flex items-center gap-2 mb-4">
+                <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                <h2 className="text-lg font-semibold text-gray-900">Concluídos por ano</h2>
+              </div>
+              <div className="space-y-3">
+                {completedByYear.length > 0 ? (
+                  completedByYear.map(([year, count]) => (
+                    <div key={year} className="surface-card-muted flex items-center justify-between px-4 py-3">
+                      <span className="text-sm text-slate-600">{year}</span>
+                      <span className="text-sm font-semibold text-slate-900">{count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">Ainda não há projetos concluídos com ano consolidado.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-gray-400" />
+                <h2 className="text-lg font-semibold text-gray-900">Atividades recentes</h2>
+              </div>
+              <div className="space-y-4">
+                {recentActivities.length > 0 ? (
+                  recentActivities.map((activity) => (
+                    <button
+                      key={activity.id}
+                      onClick={() => openProjectDetail(activity.projectId)}
+                      className="interactive-surface block w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-left"
+                    >
+                      <p className="text-sm font-medium text-gray-900">
+                        {activity.projectName}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        <span className="font-medium">{activity.user}</span> {activity.action}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-500">{activity.details}</p>
+                      <p className="mt-2 text-xs text-gray-400">
+                        {new Date(activity.timestamp).toLocaleString('pt-BR')}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">Nenhuma atividade recente registrada.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="section-card">
+              <div className="flex items-center gap-2 mb-4">
+                <FolderKanban className="w-4 h-4 text-gray-400" />
+                <h2 className="text-lg font-semibold text-gray-900">Projetos próximos do prazo</h2>
+              </div>
+              <div className="space-y-3">
+                {projects.filter((project) => isProjectDueSoon(project)).slice(0, 5).map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => openProjectDetail(project.id)}
+                    className="interactive-surface block w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-left"
+                  >
+                    <p className="text-sm font-medium text-gray-900">{project.name}</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Prazo: {project.deadline ? new Date(project.deadline).toLocaleDateString('pt-BR') : '—'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Equipe: {project.group} • Ano: {getProjectFilterYear(project) || '—'}
+                    </p>
+                  </button>
+                ))}
+                {projects.filter((project) => isProjectDueSoon(project)).length === 0 && (
+                  <p className="text-sm text-gray-500">Nenhum projeto em janela crítica de prazo.</p>
+                )}
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
 
-      {/* Task Detail Panel */}
-      <TaskDetailPanel
-        isOpen={isDetailPanelOpen}
-        onClose={() => setIsDetailPanelOpen(false)}
-        task={selectedTask}
-      />
-
-      {/* Task Modal */}
       <TaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
+        isOpen={!!currentTask}
+        onClose={() => setSelectedTaskId(null)}
+        editingTask={currentTask}
+        projectId={currentTask?.projectId}
+        milestoneId={currentTask?.milestoneId}
       />
 
-      {/* Test Data Button - Temporary (can be removed) */}
-      <button
-        onClick={loadTestData}
-        className="fixed bottom-4 right-4 bg-yellow-400 hover:bg-yellow-500 text-black px-3 py-2 rounded text-xs font-medium shadow-lg transition-colors z-50"
-        title="Carrega projeto de teste com Gantt e tasks para validação"
-      >
-        🧪 Carregar Dados Teste
-      </button>
+      <TaskModal
+        isOpen={isCreatingTask}
+        onClose={() => setIsCreatingTask(false)}
+      />
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="metric-card">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="rounded-2xl bg-slate-50 p-2.5">{icon}</div>
+        <span className="text-sm font-medium text-slate-600">{label}</span>
+      </div>
+      <p className="text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function InlineStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="surface-card-muted px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function ShortcutCard({
+  title,
+  description,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="interactive-surface rounded-[24px] border border-slate-200/80 bg-white/70 p-4 text-left"
+    >
+      <p className="font-medium text-slate-900">{title}</p>
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+      <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+        Abrir
+        <ArrowRight className="w-4 h-4" />
+      </div>
+    </button>
+  );
+}
+
+function FavoriteBucket({
+  title,
+  items,
+  emptyMessage,
+}: {
+  title: string;
+  items: Array<{
+    id: string;
+    title: string;
+    subtitle: string;
+    onClick: () => void;
+    icon: ReactNode;
+  }>;
+  emptyMessage: string;
+}) {
+  return (
+    <div className="rounded-[28px] border border-slate-200/80 bg-slate-50/70 p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+          {items.length}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <button
+              key={item.id}
+              onClick={item.onClick}
+              className="interactive-surface flex w-full items-center gap-3 rounded-2xl border border-white/80 bg-white px-3 py-3 text-left"
+            >
+              <div className="rounded-xl bg-slate-50 p-2">{item.icon}</div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
+                <p className="truncate text-xs text-slate-500">{item.subtitle}</p>
+              </div>
+            </button>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-3 py-6 text-sm text-slate-500">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

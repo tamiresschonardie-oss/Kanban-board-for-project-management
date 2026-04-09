@@ -1,4 +1,10 @@
 import { WBSTask, Project, ProjectExecutionStatus } from '../types';
+import { getProjectExecutionPhases } from './projectSelectors';
+import {
+  getTaskNodeProgress,
+  isTaskNodeDeleted,
+  isTaskNodeEffectivelyComplete,
+} from '../selectors/taskSelectors';
 
 export type PhaseStatus = 'não-iniciado' | 'em-andamento' | 'concluído' | 'em-risco';
 
@@ -9,29 +15,26 @@ export type PhaseStatus = 'não-iniciado' | 'em-andamento' | 'concluído' | 'em-
  * @returns Status da fase
  */
 export function getPhaseStatus(phaseId: string, allTasks: WBSTask[]): PhaseStatus {
-  const phaseTasks = allTasks.filter(t => t.phaseId === phaseId);
+  const phaseTasks = allTasks.filter((task) => task.phaseId === phaseId && !isTaskNodeDeleted(task));
 
-  // 1. Sem tarefas
   if (phaseTasks.length === 0) return 'não-iniciado';
 
-  // 2. Verificar se há tarefa vencida não concluída (prioridade máxima)
   const now = new Date();
-  const hasExpiredTask = phaseTasks.some(t =>
-    t.dueDate &&
-    new Date(t.dueDate) < now &&
-    t.status !== 'done'
+  const hasExpiredTask = phaseTasks.some((task) =>
+    task.dueDate &&
+    new Date(task.dueDate) < now &&
+    !isTaskNodeEffectivelyComplete(task)
   );
   if (hasExpiredTask) return 'em-risco';
 
-  // 3. Todas tarefas completas
-  const allDone = phaseTasks.every(t => t.status === 'done');
+  const allDone = phaseTasks.every((task) => isTaskNodeEffectivelyComplete(task));
   if (allDone) return 'concluído';
 
-  // 4. Pelo menos uma em andamento
-  const hasInProgress = phaseTasks.some(t => t.status === 'doing');
+  const hasInProgress = phaseTasks.some(
+    (task) => getTaskNodeProgress(task) > 0 || task.status === 'in_progress'
+  );
   if (hasInProgress) return 'em-andamento';
 
-  // 5. Padrão: não iniciado (todas estão em 'todo')
   return 'não-iniciado';
 }
 
@@ -74,29 +77,25 @@ export function getPhaseStatusColor(status: PhaseStatus): string {
  * @returns Status de execução do projeto
  */
 export function getProjectExecutionStatus(project: Project, allTasks: WBSTask[]): ProjectExecutionStatus {
-  if (!project.phases || project.phases.length === 0) {
+  const executionPhases = getProjectExecutionPhases(project);
+  if (executionPhases.length === 0) {
     return 'não-iniciado';
   }
 
-  const phaseStatuses = project.phases.map(phase => getPhaseStatus(phase.id, allTasks));
+  const phaseStatuses = executionPhases.map((phase) => getPhaseStatus(phase.id, allTasks));
 
-  // Ordem de prioridade:
-  // 1. Em risco (máxima prioridade)
   if (phaseStatuses.some(s => s === 'em-risco')) {
     return 'em-risco';
   }
 
-  // 2. Todas concluídas
   if (phaseStatuses.every(s => s === 'concluído')) {
     return 'concluído';
   }
 
-  // 3. Pelo menos uma em andamento
   if (phaseStatuses.some(s => s === 'em-andamento')) {
     return 'em-andamento';
   }
 
-  // 4. Padrão: não iniciado (todas "não-iniciado")
   return 'não-iniciado';
 }
 

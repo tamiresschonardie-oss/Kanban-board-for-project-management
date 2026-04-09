@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ChevronRight,
   ChevronDown,
@@ -15,34 +15,73 @@ import {
 } from 'lucide-react';
 import { EnrichedTask } from '../context/TaskContext';
 import { KanbanColumn } from '../context/UserKanbanContext';
+import { useAdmin } from '../context/AdminContext';
+import { getTaskStatusFromVisualColumn, getTaskVisualColumn, normalizeTaskStatus } from '../utils/taskStatus';
 
 interface TaskListViewProps {
   tasks: EnrichedTask[];
   columns: KanbanColumn[];
   onTaskClick: (task: EnrichedTask) => void;
   onUpdateTask: (taskId: string, updates: any) => void;
-  onAddSubtask: (taskId: string, title: string) => void;
+  onAddSubtask: (taskId: string, title: string, assignee?: string) => void;
   onDeleteTask: (taskId: string) => void;
   onMoveTask?: (taskId: string, direction: 'up' | 'down') => void;
+  onToggleSubtask: (taskId: string, subtaskId: string) => void;
+  onUpdateSubtask: (taskId: string, subtaskId: string, updates: any) => void;
+  onAddNestedSubtask: (taskId: string, parentId: string, title: string, assignee?: string) => void;
 }
 
 interface SubtaskRowProps {
   subtask: any;
   level: number;
   taskId: string;
+  rootTask: EnrichedTask;
   columns: KanbanColumn[];
   onToggle: (subtaskId: string) => void;
+  onTaskClick: (task: EnrichedTask) => void;
   onUpdateSubtask: (subtaskId: string, updates: any) => void;
-  onAddSubtask: (parentId: string, title: string) => void;
+  onAddSubtask: (parentId: string, title: string, assignee?: string) => void;
 }
 
-function SubtaskRow({ subtask, level, taskId, columns, onToggle, onUpdateSubtask, onAddSubtask }: SubtaskRowProps) {
+function SubtaskRow({
+  subtask,
+  level,
+  taskId,
+  rootTask,
+  columns,
+  onToggle,
+  onTaskClick,
+  onUpdateSubtask,
+  onAddSubtask,
+}: SubtaskRowProps) {
+  const { currentUser, users } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(subtask.title);
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [newChildTitle, setNewChildTitle] = useState('');
+  const [newChildAssignee, setNewChildAssignee] = useState(subtask.assignee || currentUser?.name || '');
   const [showStatusPopover, setShowStatusPopover] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const assigneeOptions = useMemo(() => {
+    const names = [...(subtask.stakeholders || []), ...users.map((user) => user.name)].filter(Boolean);
+    return Array.from(new Set(names));
+  }, [subtask.stakeholders, users]);
+  const subtaskTask = useMemo<EnrichedTask>(() => ({
+    ...subtask,
+    rootTaskId: rootTask.rootTaskId || rootTask.id,
+    isSubtaskNode: true,
+    projectId: subtask.projectId || rootTask.projectId,
+    projectName: subtask.projectName || rootTask.projectName,
+    phaseId: subtask.phaseId || rootTask.phaseId,
+    phaseName: subtask.phaseName || rootTask.phaseName,
+    milestoneId: subtask.milestoneId || rootTask.milestoneId,
+    milestoneName: subtask.milestoneName || rootTask.milestoneName,
+    isLinkedToProject: subtask.isLinkedToProject ?? rootTask.isLinkedToProject,
+    kanbanColumn: subtask.kanbanColumn || rootTask.kanbanColumn,
+    tags: subtask.tags || [],
+    subtasks: subtask.subtasks || [],
+  }), [subtask, rootTask]);
   
   const hasChildren = subtask.subtasks && subtask.subtasks.length > 0;
 
@@ -55,15 +94,19 @@ function SubtaskRow({ subtask, level, taskId, columns, onToggle, onUpdateSubtask
 
   const handleAddChild = () => {
     if (newChildTitle.trim()) {
-      onAddSubtask(subtask.id, newChildTitle.trim());
+      onAddSubtask(subtask.id, newChildTitle.trim(), newChildAssignee || subtask.assignee || currentUser?.name);
       setNewChildTitle('');
+      setNewChildAssignee(subtask.assignee || currentUser?.name || '');
       setIsAddingChild(false);
       setIsExpanded(true);
     }
   };
 
   const getStatusColor = () => {
-    if (subtask.completed) return 'bg-green-100 text-green-700';
+    const status = normalizeTaskStatus(subtask.status, subtask.completed);
+    if (status === 'done') return 'bg-green-100 text-green-700';
+    if (status === 'blocked') return 'bg-rose-100 text-rose-700';
+    if (status === 'in_progress') return 'bg-blue-100 text-blue-700';
     return 'bg-gray-100 text-gray-700';
   };
 
@@ -104,12 +147,13 @@ function SubtaskRow({ subtask, level, taskId, columns, onToggle, onUpdateSubtask
                 autoFocus
               />
             ) : (
-              <span 
-                className="text-sm text-gray-700 cursor-text hover:bg-gray-100 px-2 py-1 rounded"
-                onClick={() => setIsEditing(true)}
+              <button
+                type="button"
+                className="text-sm text-left text-gray-700 hover:text-blue-600 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                onClick={() => onTaskClick(subtaskTask)}
               >
                 {subtask.title}
-              </span>
+              </button>
             )}
 
             <button
@@ -137,15 +181,61 @@ function SubtaskRow({ subtask, level, taskId, columns, onToggle, onUpdateSubtask
           )}
         </td>
         <td className="px-6 py-3">
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor()}`}>
-            {subtask.completed ? '✅ Concluído' : '⏸️ Pendente'}
-          </span>
+          <button
+            onClick={() => onToggle(subtask.id)}
+            className={`px-2 py-0.5 rounded text-xs font-medium transition-colors hover:opacity-80 ${getStatusColor()}`}
+          >
+            {normalizeTaskStatus(subtask.status, subtask.completed) === 'done'
+              ? '✅ Concluído'
+              : normalizeTaskStatus(subtask.status, subtask.completed) === 'blocked'
+                ? '⛔ Bloqueada'
+                : normalizeTaskStatus(subtask.status, subtask.completed) === 'in_progress'
+                  ? '▶️ Em andamento'
+                  : '⏸️ Backlog'}
+          </button>
         </td>
         <td className="px-6 py-3">
-          <div className="opacity-0 group-hover:opacity-100">
-            <button className="p-1 hover:bg-gray-200 rounded">
+          <div className="opacity-0 group-hover:opacity-100 relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowActionsMenu((prev) => !prev);
+              }}
+              className="p-1 hover:bg-gray-200 rounded"
+            >
               <MoreHorizontal className="w-4 h-4 text-gray-400" />
             </button>
+
+            {showActionsMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowActionsMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-20 min-w-[160px] overflow-hidden">
+                  <button
+                    onClick={() => {
+                      onTaskClick(subtaskTask);
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Abrir detalhes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditing(true);
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Renomear
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </td>
       </tr>
@@ -170,6 +260,22 @@ function SubtaskRow({ subtask, level, taskId, columns, onToggle, onUpdateSubtask
                 className="flex-1 text-sm px-3 py-1.5 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
+              <select
+                value={newChildAssignee}
+                onChange={(e) => setNewChildAssignee(e.target.value)}
+                className="text-sm px-3 py-1.5 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">
+                  {subtask.assignee || currentUser?.name
+                    ? `Responsável padrão: ${subtask.assignee || currentUser?.name}`
+                    : 'Selecionar responsável'}
+                </option>
+                {assigneeOptions.map((assignee) => (
+                  <option key={assignee} value={assignee}>
+                    {assignee}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={handleAddChild}
                 className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
@@ -196,8 +302,10 @@ function SubtaskRow({ subtask, level, taskId, columns, onToggle, onUpdateSubtask
           subtask={child}
           level={level + 1}
           taskId={taskId}
+          rootTask={rootTask}
           columns={columns}
           onToggle={onToggle}
+          onTaskClick={onTaskClick}
           onUpdateSubtask={onUpdateSubtask}
           onAddSubtask={onAddSubtask}
         />
@@ -214,19 +322,23 @@ function TaskRow({
   onAddSubtask,
   onDeleteTask,
   onMoveTask,
+  onToggleSubtask,
+  onUpdateSubtask,
+  onAddNestedSubtask,
   isFirst,
   isLast
 }: { 
   task: EnrichedTask; 
   columns: KanbanColumn[];
-  onTaskClick: () => void; 
+  onTaskClick: (task: EnrichedTask) => void;
   onUpdateTask: (taskId: string, updates: any) => void;
-  onAddSubtask: (taskId: string, title: string) => void;
+  onAddSubtask: (taskId: string, title: string, assignee?: string) => void;
   onDeleteTask: (taskId: string) => void;
   onMoveTask?: (taskId: string, direction: 'up' | 'down') => void;
   isFirst?: boolean;
   isLast?: boolean;
 }) {
+  const { currentUser, users } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showStatusPopover, setShowStatusPopover] = useState(false);
   const [showTagEditor, setShowTagEditor] = useState(false);
@@ -236,9 +348,14 @@ function TaskRow({
   const [editedName, setEditedName] = useState(task.title);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState(task.assignee || currentUser?.name || '');
 
   const hasSubtasks = task.subtasks && task.subtasks.length > 0;
-  const isLate = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done';
+  const isLate = task.dueDate && new Date(task.dueDate) < new Date() && normalizeTaskStatus(task.status, task.completed) !== 'done';
+  const assigneeOptions = useMemo(() => {
+    const names = [...(task.stakeholders || []), ...users.map((user) => user.name)].filter(Boolean);
+    return Array.from(new Set(names));
+  }, [task.stakeholders, users]);
 
   // Group columns by category
   const groupedColumns = {
@@ -259,9 +376,7 @@ function TaskRow({
   };
 
   // Get current column/status
-  const currentColumn = columns.find(col => col.id === task.kanbanColumn) || 
-                       columns.find(col => col.name.toLowerCase().includes(task.status || '')) ||
-                       columns[0];
+  const currentColumn = columns.find((col) => col.id === getTaskVisualColumn(task.status, task.completed)) || columns[0];
 
   const handleAddTag = () => {
     if (!newTag.trim()) return;
@@ -277,9 +392,10 @@ function TaskRow({
   };
 
   const handleStatusChange = (columnId: string) => {
+    const nextStatus = getTaskStatusFromVisualColumn(columnId);
     onUpdateTask(task.id, { 
-      kanbanColumn: columnId,
-      status: columns.find(c => c.id === columnId)?.name.toLowerCase().includes('concluído') ? 'done' : 'doing'
+      status: nextStatus,
+      completed: nextStatus === 'done',
     });
     setShowStatusPopover(false);
   };
@@ -293,8 +409,9 @@ function TaskRow({
 
   const handleAddSubtask = () => {
     if (newSubtaskTitle.trim()) {
-      onAddSubtask(task.id, newSubtaskTitle.trim());
+      onAddSubtask(task.id, newSubtaskTitle.trim(), newSubtaskAssignee || task.assignee || currentUser?.name);
       setNewSubtaskTitle('');
+      setNewSubtaskAssignee(task.assignee || currentUser?.name || '');
       setIsAddingSubtask(false);
       setIsExpanded(true);
     }
@@ -561,7 +678,7 @@ function TaskRow({
               <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-20 min-w-[160px] overflow-hidden">
                 <button
                   onClick={() => {
-                    onTaskClick();
+                    onTaskClick(task);
                     setShowActionsMenu(false);
                   }}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
@@ -607,6 +724,22 @@ function TaskRow({
                 className="flex-1 text-sm px-3 py-1.5 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
+              <select
+                value={newSubtaskAssignee}
+                onChange={(e) => setNewSubtaskAssignee(e.target.value)}
+                className="text-sm px-3 py-1.5 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">
+                  {task.assignee || currentUser?.name
+                    ? `Responsável padrão: ${task.assignee || currentUser?.name}`
+                    : 'Selecionar responsável'}
+                </option>
+                {assigneeOptions.map((assignee) => (
+                  <option key={assignee} value={assignee}>
+                    {assignee}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={handleAddSubtask}
                 className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
@@ -634,19 +767,12 @@ function TaskRow({
           subtask={subtask}
           level={1}
           taskId={task.id}
+          rootTask={task}
           columns={columns}
-          onToggle={(subtaskId) => {
-            // Toggle subtask completion
-            console.log('Toggle subtask:', subtaskId);
-          }}
-          onUpdateSubtask={(subtaskId, updates) => {
-            // Handle subtask updates
-            console.log('Update subtask:', subtaskId, updates);
-          }}
-          onAddSubtask={(parentId, title) => {
-            // Handle nested subtask creation
-            console.log('Add nested subtask:', parentId, title);
-          }}
+          onToggle={(subtaskId) => onToggleSubtask(task.id, subtaskId)}
+          onTaskClick={onTaskClick}
+          onUpdateSubtask={(subtaskId, updates) => onUpdateSubtask(task.id, subtaskId, updates)}
+          onAddSubtask={(parentId, title, assignee) => onAddNestedSubtask(task.id, parentId, title, assignee)}
         />
       ))}
     </>
@@ -660,7 +786,10 @@ export function TaskListView({
   onUpdateTask,
   onAddSubtask,
   onDeleteTask,
-  onMoveTask
+  onMoveTask,
+  onToggleSubtask,
+  onUpdateSubtask,
+  onAddNestedSubtask,
 }: TaskListViewProps) {
   if (tasks.length === 0) {
     return (
@@ -707,11 +836,14 @@ export function TaskListView({
               key={task.id}
               task={task}
               columns={columns}
-              onTaskClick={() => onTaskClick(task)}
+              onTaskClick={onTaskClick}
               onUpdateTask={onUpdateTask}
               onAddSubtask={onAddSubtask}
               onDeleteTask={onDeleteTask}
               onMoveTask={onMoveTask}
+              onToggleSubtask={onToggleSubtask}
+              onUpdateSubtask={onUpdateSubtask}
+              onAddNestedSubtask={onAddNestedSubtask}
               isFirst={index === 0}
               isLast={index === tasks.length - 1}
             />

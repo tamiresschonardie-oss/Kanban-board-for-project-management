@@ -1,14 +1,18 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Copy } from 'lucide-react';
 import { useEAP } from '../../context/EAPContext';
+import { useAdmin } from '../../context/AdminContext';
 import { EAP } from '../../types';
 import { EAPTemplateModal } from './EAPTemplateModal';
+import { canUserPerform } from '../../utils/permissions';
 
 export function EAPTemplatesCRUD() {
-  const { eapTemplates, addEAPTemplate, updateEAPTemplate, deleteEAPTemplate } = useEAP();
+  const { projectTypes, currentUser } = useAdmin();
+  const { eapTemplates, addEAPTemplate, duplicateEAPTemplate, updateEAPTemplate, deleteEAPTemplate } = useEAP();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EAP | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const canManageTemplates = canUserPerform(currentUser, 'eap:manage');
 
   const filteredTemplates = eapTemplates.filter(
     (template) =>
@@ -17,22 +21,31 @@ export function EAPTemplatesCRUD() {
   );
 
   const handleCreate = () => {
+    if (!canManageTemplates) return;
     setEditingTemplate(null);
     setIsModalOpen(true);
   };
 
   const handleEdit = (template: EAP) => {
+    if (!canManageTemplates) return;
     setEditingTemplate(template);
     setIsModalOpen(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canManageTemplates) return;
     if (window.confirm('Tem certeza que deseja deletar este template?')) {
       deleteEAPTemplate(id);
     }
   };
 
+  const handleDuplicate = (id: string) => {
+    if (!canManageTemplates) return;
+    duplicateEAPTemplate(id);
+  };
+
   const handleSaveTemplate = (template: EAP) => {
+    if (!canManageTemplates) return;
     if (editingTemplate) {
       updateEAPTemplate(editingTemplate.id, template);
     } else {
@@ -57,12 +70,19 @@ export function EAPTemplatesCRUD() {
         </div>
         <button
           onClick={handleCreate}
+          disabled={!canManageTemplates}
           className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm transition-colors"
         >
           <Plus className="w-4 h-4" />
           Novo Template
         </button>
       </div>
+
+      {!canManageTemplates && (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          Seu perfil atual pode visualizar os templates EAP, mas não pode alterá-los.
+        </div>
+      )}
 
       {/* Tabela de Templates */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -71,6 +91,7 @@ export function EAPTemplatesCRUD() {
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Nome</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Descrição</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Tipo Vinculado</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Fases</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
               <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Ações</th>
@@ -79,8 +100,10 @@ export function EAPTemplatesCRUD() {
           <tbody>
             {filteredTemplates.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500 text-sm">
-                  {searchTerm ? 'Nenhum template encontrado' : 'Nenhum template criado ainda'}
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                  {searchTerm
+                    ? 'Nenhum template encontrado para este filtro.'
+                    : 'Nenhum template criado ainda. Comece pelo template base da sua operação para acelerar novos projetos.'}
                 </td>
               </tr>
             ) : (
@@ -91,6 +114,11 @@ export function EAPTemplatesCRUD() {
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-gray-600 text-sm line-clamp-2">{template.description || '—'}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600">
+                      {projectTypes.find((projectType) => projectType.id === template.projectTypeId)?.name || 'Livre'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm text-gray-600">{template.phases.length} fase(s)</span>
@@ -108,20 +136,31 @@ export function EAPTemplatesCRUD() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleEdit(template)}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 hover:text-gray-900"
-                        title="Editar"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(template.id)}
-                        className="p-2 hover:bg-red-100 rounded-lg transition-colors text-gray-600 hover:text-red-600"
-                        title="Deletar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canManageTemplates && (
+                        <>
+                          <button
+                            onClick={() => handleDuplicate(template.id)}
+                            className="p-2 hover:bg-blue-50 rounded-lg transition-colors text-gray-600 hover:text-blue-700"
+                            title="Duplicar"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(template)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 hover:text-gray-900"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(template.id)}
+                            className="p-2 hover:bg-red-100 rounded-lg transition-colors text-gray-600 hover:text-red-600"
+                            title="Deletar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

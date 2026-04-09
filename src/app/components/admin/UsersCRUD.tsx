@@ -2,24 +2,33 @@ import { useState } from 'react';
 import { Plus, Edit2, Trash2, Search } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { User, UserRole, UserStatus } from '../../types';
+import { SearchableMultiSelect } from '../filters/SearchableMultiSelect';
+import { getPrimaryUserTeam, getUserTeams } from '../../utils/userTeams';
 
 interface UserFormData {
   name: string;
   email: string;
-  team: string;
+  teams: string[];
+  cargo: string;
+  salaryMonthly: string;
+  costPerHour: string;
   role: UserRole;
   status: UserStatus;
 }
 
 export function UsersCRUD() {
-  const { users, addUser, updateUser, deleteUser, teams } = useAdmin();
+  const { users, addUser, updateUser, deleteUser, teams, issuePasswordSetupLink, requestPasswordReset } = useAdmin();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [accessNotice, setAccessNotice] = useState('');
   const [formData, setFormData] = useState<UserFormData>({
     name: '',
     email: '',
-    team: '',
+    teams: [],
+    cargo: '',
+    salaryMonthly: '',
+    costPerHour: '',
     role: 'user',
     status: 'active',
   });
@@ -32,16 +41,33 @@ export function UsersCRUD() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.teams.length === 0) return;
+
+    const parsedUserData = {
+      name: formData.name,
+      email: formData.email,
+      teams: formData.teams,
+      cargo: formData.cargo,
+      salaryMonthly: formData.salaryMonthly ? Number(formData.salaryMonthly) : undefined,
+      costPerHour: formData.costPerHour ? Number(formData.costPerHour) : undefined,
+      role: formData.role,
+      status: formData.status,
+    };
     
     if (editingUser) {
-      updateUser(editingUser.id, formData);
+      updateUser(editingUser.id, parsedUserData);
+      setAccessNotice(`Dados de ${formData.name} atualizados com sucesso.`);
     } else {
       const newUser: User = {
         id: Date.now().toString(),
-        ...formData,
+        ...parsedUserData,
+        team: getPrimaryUserTeam({ team: '', teams: formData.teams }),
         createdAt: new Date().toISOString(),
       };
       addUser(newUser);
+      setAccessNotice(
+        `Usuário ${formData.name} criado. Um link de definição de senha foi preparado na caixa de saída local.`
+      );
     }
     
     closeModal();
@@ -53,7 +79,12 @@ export function UsersCRUD() {
       setFormData({
         name: user.name,
         email: user.email,
-        team: user.team,
+        teams: getUserTeams(user),
+        cargo: user.cargo || '',
+        salaryMonthly:
+          typeof user.salaryMonthly === 'number' ? String(user.salaryMonthly) : '',
+        costPerHour:
+          typeof user.costPerHour === 'number' ? String(user.costPerHour) : '',
         role: user.role,
         status: user.status,
       });
@@ -67,7 +98,10 @@ export function UsersCRUD() {
     setFormData({
       name: '',
       email: '',
-      team: '',
+      teams: [],
+      cargo: '',
+      salaryMonthly: '',
+      costPerHour: '',
       role: 'user',
       status: 'active',
     });
@@ -79,16 +113,45 @@ export function UsersCRUD() {
     }
   };
 
+  const handleAccessAction = async (user: User) => {
+    if (user.passwordHash && !user.mustSetPassword) {
+      const result = await requestPasswordReset(user.email, 'reset');
+      if (!result.ok) {
+        setAccessNotice(result.message);
+        return;
+      }
+      setAccessNotice(
+        result.previewUrl
+          ? `Link de redefinição preparado para ${user.email}: ${result.previewUrl}`
+          : `Fluxo de redefinição preparado para ${user.email}.`
+      );
+      return;
+    }
+
+    const result = await issuePasswordSetupLink(user.id);
+    if (!result.ok) {
+      setAccessNotice(result.error || 'Não foi possível preparar o acesso do usuário.');
+      return;
+    }
+    setAccessNotice(
+      result.previewUrl
+        ? `Link de ativação preparado para ${user.email}: ${result.previewUrl}`
+        : `Fluxo de ativação preparado para ${user.email}.`
+    );
+  };
+
   const getRoleBadge = (role: UserRole) => {
     const colors = {
       admin: 'bg-purple-100 text-purple-700',
       pmo: 'bg-blue-100 text-blue-700',
+      gestor: 'bg-emerald-100 text-emerald-700',
       user: 'bg-gray-100 text-gray-700',
     };
     const labels = {
-      admin: 'Admin',
+      admin: 'Gestão / Admin',
       pmo: 'PMO',
-      user: 'Usuário',
+      gestor: 'Gestor',
+      user: 'Colaborador',
     };
     return (
       <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[role]}`}>
@@ -133,15 +196,24 @@ export function UsersCRUD() {
       </div>
 
       {/* Table */}
+      {accessNotice ? (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {accessNotice}
+        </div>
+      ) : null}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-6 py-4 text-left font-medium text-gray-700">Nome</th>
               <th className="px-6 py-4 text-left font-medium text-gray-700">Email</th>
-              <th className="px-6 py-4 text-left font-medium text-gray-700">Equipe</th>
+              <th className="px-6 py-4 text-left font-medium text-gray-700">Equipes</th>
+              <th className="px-6 py-4 text-left font-medium text-gray-700">Cargo</th>
+              <th className="px-6 py-4 text-left font-medium text-gray-700">Custo/Hora</th>
               <th className="px-6 py-4 text-left font-medium text-gray-700">Perfil</th>
               <th className="px-6 py-4 text-left font-medium text-gray-700">Status</th>
+              <th className="px-6 py-4 text-left font-medium text-gray-700">Acesso</th>
               <th className="px-6 py-4 text-right font-medium text-gray-700">Ações</th>
             </tr>
           </thead>
@@ -159,13 +231,38 @@ export function UsersCRUD() {
                 <td className="px-6 py-4 text-gray-600">{user.email}</td>
                 <td className="px-6 py-4">
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                    {user.team}
+                    {getUserTeams(user).join(', ')}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-gray-600">{user.cargo || '—'}</td>
+                <td className="px-6 py-4 text-gray-600">
+                  {typeof user.costPerHour === 'number'
+                    ? `R$ ${user.costPerHour.toFixed(2)}`
+                    : typeof user.salaryMonthly === 'number'
+                      ? `R$ ${(user.salaryMonthly / 160).toFixed(2)}`
+                      : '—'}
                 </td>
                 <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
                 <td className="px-6 py-4">{getStatusBadge(user.status)}</td>
                 <td className="px-6 py-4">
+                  {user.passwordHash && !user.mustSetPassword ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                      Senha ativa
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                      Aguardando definição
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => void handleAccessAction(user)}
+                      className="px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      {user.passwordHash && !user.mustSetPassword ? 'Redefinir senha' : 'Enviar acesso'}
+                    </button>
                     <button
                       onClick={() => openModal(user)}
                       className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -231,21 +328,65 @@ export function UsersCRUD() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Equipe
+                  Equipes
                 </label>
-                <select
-                  required
-                  value={formData.team}
-                  onChange={(e) => setFormData({ ...formData, team: e.target.value })}
+                <SearchableMultiSelect
+                  value={formData.teams}
+                  onChange={(value) => setFormData({ ...formData, teams: value })}
+                  options={teams.map((team) => ({ value: team.name, label: team.name }))}
+                  placeholder="Selecione uma ou mais equipes"
+                  allLabel="Todas as equipes"
+                  searchPlaceholder="Buscar equipe..."
+                  emptyMessage="Nenhuma equipe encontrada."
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  A primeira equipe selecionada será usada como equipe principal para compatibilidade.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cargo
+                </label>
+                <input
+                  type="text"
+                  value={formData.cargo}
+                  onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
+                  placeholder="Ex.: Desenvolvedor Backend"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Selecione uma equipe</option>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.name}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Salário mensal
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.salaryMonthly}
+                    onChange={(e) => setFormData({ ...formData, salaryMonthly: e.target.value })}
+                    placeholder="Ex: 9600"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Custo por hora
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.costPerHour}
+                    onChange={(e) => setFormData({ ...formData, costPerHour: e.target.value })}
+                    placeholder="Prioritário sobre salário"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div>
@@ -257,9 +398,10 @@ export function UsersCRUD() {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="user">Usuário</option>
+                  <option value="user">Colaborador</option>
+                  <option value="gestor">Gestor</option>
                   <option value="pmo">PMO</option>
-                  <option value="admin">Admin</option>
+                  <option value="admin">Gestão / Admin</option>
                 </select>
               </div>
 
@@ -287,9 +429,10 @@ export function UsersCRUD() {
                 </button>
                 <button
                   type="submit"
+                  disabled={formData.teams.length === 0}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  {editingUser ? 'Salvar' : 'Criar'}
+                    {editingUser ? 'Salvar' : 'Criar'}
                 </button>
               </div>
             </form>

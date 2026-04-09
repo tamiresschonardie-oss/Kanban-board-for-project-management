@@ -63,7 +63,11 @@ export function TeamsCRUD() {
 
   const getMemberNames = (memberIds: string[]) => {
     return memberIds
-      .map((id) => users.find((u) => u.id === id)?.name)
+      .map((id) => {
+        const user = users.find((u) => u.id === id);
+        if (!user) return null;
+        return user.cargo ? `${user.name} • ${user.cargo}` : user.name;
+      })
       .filter(Boolean)
       .join(', ');
   };
@@ -203,7 +207,10 @@ export function TeamsCRUD() {
                         }}
                         className="rounded border-gray-300"
                       />
-                      <span className="text-sm text-gray-700">{user.name}</span>
+                      <span className="text-sm text-gray-700">
+                        {user.name}
+                        {user.cargo ? ` • ${user.cargo}` : ''}
+                      </span>
                     </label>
                   ))}
                 </div>

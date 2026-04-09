@@ -1,24 +1,25 @@
 import { TrendingUp, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
 import { useProjects } from '../context/ProjectContext';
+import { getProjectGovernancePhaseId, getProjectMetrics } from '../utils/projectSelectors';
 
 export function KPIHeader() {
   const { projects } = useProjects();
 
   // Calculate KPIs
   const inProgress = projects.filter(p => 
-    p.status !== 'backlog' && p.progress < 100
+    getProjectGovernancePhaseId(p) !== 'backlog' && getProjectMetrics(p).progress < 100
   ).length;
 
   const delayed = projects.filter(p => 
-    p.progress < 50 && p.hoursRemaining > 100
+    getProjectMetrics(p).progress < 50 && getProjectMetrics(p).hoursRemaining > 100
   ).length;
 
   const completed = projects.filter(p => 
-    p.progress === 100
+    getProjectMetrics(p).progress === 100
   ).length;
 
   const upcomingDeadlines = projects.filter(p => 
-    p.deadline && p.progress < 100
+    p.deadline && getProjectMetrics(p).progress < 100
   ).length;
 
   const kpis = [

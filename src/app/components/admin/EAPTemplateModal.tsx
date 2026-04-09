@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { EAP, Phase } from '../../types';
+import { useAdmin } from '../../context/AdminContext';
 import { EAPStructureEditor } from './EAPStructureEditor';
+import { useFeedback } from '../../context/FeedbackContext';
 
 interface EAPTemplateModalProps {
   template: EAP | null;
@@ -10,9 +12,12 @@ interface EAPTemplateModalProps {
 }
 
 export function EAPTemplateModal({ template, onSave, onClose }: EAPTemplateModalProps) {
+  const { projectTypes } = useAdmin();
+  const { showFeedback } = useFeedback();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [projectTypeId, setProjectTypeId] = useState('');
   const [phases, setPhases] = useState<Phase[]>([]);
 
   useEffect(() => {
@@ -20,19 +25,24 @@ export function EAPTemplateModal({ template, onSave, onClose }: EAPTemplateModal
       setName(template.name);
       setDescription(template.description || '');
       setIsActive(template.isActive);
+      setProjectTypeId(template.projectTypeId || '');
       setPhases(template.phases);
     } else {
-      // Nova EAP vazia
       setName('');
       setDescription('');
       setIsActive(true);
+      setProjectTypeId('');
       setPhases([]);
     }
   }, [template]);
 
   const handleSave = () => {
     if (!name.trim()) {
-      alert('Nome do template é obrigatório');
+      showFeedback({
+        tone: 'error',
+        title: 'Nome obrigatório',
+        message: 'Informe um nome para salvar o template EAP.',
+      });
       return;
     }
 
@@ -41,12 +51,17 @@ export function EAPTemplateModal({ template, onSave, onClose }: EAPTemplateModal
       name: name.trim(),
       description: description.trim(),
       isActive,
+      projectTypeId: projectTypeId || undefined,
       phases,
       createdAt: template?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     onSave(savedTemplate);
+    showFeedback({
+      tone: 'success',
+      title: template ? 'Template EAP atualizado' : 'Template EAP criado',
+    });
   };
 
   const handleAddPhase = () => {
@@ -100,6 +115,27 @@ export function EAPTemplateModal({ template, onSave, onClose }: EAPTemplateModal
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tipo de Projeto Associado
+              </label>
+              <select
+                value={projectTypeId}
+                onChange={(e) => setProjectTypeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">Sem vínculo específico</option>
+                {projectTypes.map((projectType) => (
+                  <option key={projectType.id} value={projectType.id}>
+                    {projectType.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Campo opcional para categorizar o template sem acoplar a execução ao tipo.
+              </p>
             </div>
 
             <div className="flex items-center gap-3">

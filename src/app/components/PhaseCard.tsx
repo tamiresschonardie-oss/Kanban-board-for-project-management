@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Phase, WBSTask } from '../types';
 import { useTasks } from '../context/TaskContext';
 import { getPhaseStatusBadge, PhaseStatus } from '../utils/phaseStatusCalculator';
+import { isTaskNodeEffectivelyComplete } from '../selectors/taskSelectors';
 import { MilestoneCard } from './MilestoneCard';
 import { TaskCardWithDropZone } from './TaskCardWithDropZone';
 
@@ -18,6 +19,7 @@ interface PhaseCardProps {
   onToggleMilestone: (milestoneId: string) => void;
   onEditTask?: (task: any) => void;
   onEditPhase?: () => void;
+  onCreateTask?: (context: { projectId?: string; phaseId: string; milestoneId: string }) => void;
 }
 
 export function PhaseCard({
@@ -32,6 +34,7 @@ export function PhaseCard({
   onToggleMilestone,
   onEditTask,
   onEditPhase,
+  onCreateTask,
 }: PhaseCardProps) {
   // Tasks sem marco específico
   const tasksWithoutMilestone = useMemo(
@@ -80,7 +83,7 @@ export function PhaseCard({
               {tasks.length} tarefas
             </span>
             <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-medium">
-              {tasks.filter(t => t.status === 'done').length}✓
+              {tasks.filter((task) => isTaskNodeEffectivelyComplete(task)).length}✓
             </span>
             <span className="text-xs font-medium whitespace-nowrap">
               {statusBadge.emoji} {statusBadge.label}
@@ -90,6 +93,24 @@ export function PhaseCard({
           {phase.description && (
             <p className="text-sm text-gray-600 mt-1">{phase.description}</p>
           )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {phase.expectedRoleLabel ? (
+              <span className="inline-flex rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
+                Papel esperado: {phase.expectedRoleLabel}
+              </span>
+            ) : null}
+            <span
+              className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${
+                phase.responsible
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {phase.responsible
+                ? `Responsável operacional: ${phase.responsible}`
+                : 'Responsável não definido'}
+            </span>
+          </div>
           <div className="mt-2 space-y-1">
             <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div
@@ -115,6 +136,13 @@ export function PhaseCard({
                 onToggle={() => onToggleMilestone(milestone.id)}
                 showTasks={true}
                 onEditTask={onEditTask}
+                onCreateTask={() =>
+                  onCreateTask?.({
+                    projectId,
+                    phaseId: phase.id,
+                    milestoneId: milestone.id,
+                  })
+                }
               />
             );
           })}
