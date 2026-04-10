@@ -23,6 +23,8 @@ import {
   normalizeEmailAddress,
 } from '../../utils/email';
 import { useFeedback } from '../../context/FeedbackContext';
+import { ProjectValueSection } from './ProjectValueSection';
+import { canUserPerform } from '../../utils/permissions';
 
 interface ProjectDetailOverviewProps {
   project: Project;
@@ -61,6 +63,7 @@ export function ProjectDetailOverview({
 }: ProjectDetailOverviewProps) {
   const { users, stakeholders, emailTemplates, sendEmailMessage, currentUser } = useAdmin();
   const { showFeedback } = useFeedback();
+  const canEditValueSection = canUserPerform(currentUser, 'project:edit');
   const [selectedEmailTemplateId, setSelectedEmailTemplateId] = useState('');
   const [manualRecipientInput, setManualRecipientInput] = useState('');
   const [manualRecipients, setManualRecipients] = useState<RecipientOption[]>([]);
@@ -309,6 +312,8 @@ export function ProjectDetailOverview({
             )}
           </div>
         </SectionCard>
+
+        <ProjectValueSection project={project} canEdit={canEditValueSection} />
 
         <SectionCard title="Comunicação">
           <div className="space-y-5">

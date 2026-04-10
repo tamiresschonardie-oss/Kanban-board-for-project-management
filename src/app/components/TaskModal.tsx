@@ -30,7 +30,9 @@ import { CommentAttachmentGallery, CommentAttachmentPicker } from './shared/Comm
 import {
   AssigneeTransferHistoryEntry,
   Comment,
+  DemandType,
   ProjectAttachment,
+  ProjectImpactLevel,
   Subtask,
   TaskScopeStatus,
   TaskDependency,
@@ -38,6 +40,9 @@ import {
   TaskDependencyType,
   TaskStatus,
   TaskTemplateItem,
+  TriageComplexity,
+  TriageScopeLevel,
+  ValueIntent,
   WBSTask,
 } from '../types';
 import {
@@ -74,6 +79,12 @@ import {
   formatDurationSummary,
   parseManualDurationInput,
 } from '../utils/timeTracking';
+import {
+  suggestDemandTypeFromTriage,
+  TRIAGE_COMPLEXITY_LABELS,
+  TRIAGE_SCOPE_LABELS,
+  VALUE_INTENT_LABELS,
+} from '../utils/demandTriage';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -93,6 +104,15 @@ type EditableTaskNode = Pick<
   | 'skillName'
   | 'status'
   | 'assignee'
+  | 'demandType'
+  | 'triageComplexity'
+  | 'expectedBusinessImpact'
+  | 'scopeLevel'
+  | 'valueIntent'
+  | 'valueIntentNotes'
+  | 'originTicket'
+  | 'originTicketReference'
+  | 'sourceSystem'
   | 'requestedBy'
   | 'stakeholders'
   | 'tags'
@@ -133,6 +153,12 @@ const PRIORITY_OPTIONS = [
   { value: 'high', label: 'Alta' },
 ] as const;
 
+const IMPACT_OPTIONS: Array<{ value: ProjectImpactLevel; label: string }> = [
+  { value: 'baixo', label: 'Baixo' },
+  { value: 'medio', label: 'Médio' },
+  { value: 'alto', label: 'Alto' },
+];
+
 const EMPTY_NODE_FORM: EditableTaskNode = {
   title: '',
   description: '',
@@ -140,6 +166,15 @@ const EMPTY_NODE_FORM: EditableTaskNode = {
   skillName: '',
   status: 'not_started',
   assignee: '',
+  demandType: undefined,
+  triageComplexity: undefined,
+  expectedBusinessImpact: undefined,
+  scopeLevel: undefined,
+  valueIntent: undefined,
+  valueIntentNotes: '',
+  originTicket: true,
+  originTicketReference: '',
+  sourceSystem: 'Atendimento',
   requestedBy: '',
   stakeholders: [],
   tags: [],
@@ -158,6 +193,15 @@ const mapNodeToForm = (node: any): EditableTaskNode => ({
   skillName: node?.skillName || '',
   status: normalizeTaskStatus(node?.status, node?.completed),
   assignee: node?.assignee || '',
+  demandType: node?.demandType || '',
+  triageComplexity: node?.triageComplexity,
+  expectedBusinessImpact: node?.expectedBusinessImpact || node?.expectedImpactLevel,
+  scopeLevel: node?.scopeLevel,
+  valueIntent: node?.valueIntent,
+  valueIntentNotes: node?.valueIntentNotes || '',
+  originTicket: node?.originTicket ?? false,
+  originTicketReference: node?.originTicketReference || '',
+  sourceSystem: node?.sourceSystem || 'Atendimento',
   requestedBy: node?.requestedBy || '',
   stakeholders: node?.stakeholders || [],
   tags: node?.tags || [],
@@ -179,7 +223,7 @@ export function TaskModal({
   editingTask,
   initialValues,
 }: TaskModalProps) {
-  const { currentUser, users, stakeholders, skills, taskTemplates, tags, ensureTag, priorityCycles } = useAdmin();
+  const { currentUser, users, stakeholders, skills, taskTemplates, tags, ensureTag, priorityCycles, demandTypes, sprints } = useAdmin();
   const { showFeedback } = useFeedback();
   const { projects, updateProject } = useProjects();
   const {
@@ -221,7 +265,8 @@ export function TaskModal({
     selectedTemplateItemId: '',
     checklistItems: [],
     subtasks: [],
-    assignee: currentUser?.name || '',
+    assignee: '',
+    demandType: undefined,
     requestedBy: currentUser?.name || '',
     ...initialValues,
   });
@@ -264,7 +309,8 @@ export function TaskModal({
         selectedTemplateItemId: '',
         checklistItems: [],
         subtasks: [],
-        assignee: currentUser?.name || '',
+        assignee: '',
+        demandType: undefined,
         requestedBy: currentUser?.name || '',
         ...initialValues,
       });
@@ -316,6 +362,24 @@ export function TaskModal({
   const activeNode = useMemo(
     () => (liveRootTask ? findTaskNode(liveRootTask, activeNodeId || liveRootTask.id) : null),
     [liveRootTask, activeNodeId]
+  );
+  const createSuggestedDemandType = useMemo(
+    () =>
+      suggestDemandTypeFromTriage({
+        triageComplexity: createForm.triageComplexity,
+        expectedBusinessImpact: createForm.expectedBusinessImpact,
+        scopeLevel: createForm.scopeLevel,
+      }),
+    [createForm.triageComplexity, createForm.expectedBusinessImpact, createForm.scopeLevel]
+  );
+  const nodeSuggestedDemandType = useMemo(
+    () =>
+      suggestDemandTypeFromTriage({
+        triageComplexity: nodeForm.triageComplexity,
+        expectedBusinessImpact: nodeForm.expectedBusinessImpact,
+        scopeLevel: nodeForm.scopeLevel,
+      }),
+    [nodeForm.triageComplexity, nodeForm.expectedBusinessImpact, nodeForm.scopeLevel]
   );
   const activeDependencyNode = useMemo(
     () => (activeNode?.id ? getTaskById(activeNode.id) || null : null),
@@ -607,9 +671,28 @@ export function TaskModal({
       description: createForm.description || undefined,
       skillId: createForm.skillId || undefined,
       skillName: selectedCreateSkill?.name,
-      status: createForm.status,
+      status: createForm.originTicket && !createForm.triageComplexity ? 'not_started' : createForm.status,
+      demandType: createForm.demandType || undefined,
+      suggestedDemandType: createSuggestedDemandType,
+      triageComplexity: createForm.triageComplexity,
+      expectedBusinessImpact: createForm.expectedBusinessImpact,
+      expectedImpactLevel: createForm.expectedBusinessImpact,
+      scopeLevel: createForm.scopeLevel,
+      valueIntent: createForm.valueIntent,
+      valueIntentNotes: createForm.valueIntentNotes || undefined,
+      triageStatus:
+        createForm.triageComplexity || createForm.expectedBusinessImpact || createForm.scopeLevel || createForm.valueIntent
+          ? 'completed'
+          : 'pending',
+      originTicket: createForm.originTicket,
+      originTicketReference: createForm.originTicketReference || undefined,
+      sourceSystem: createForm.sourceSystem || undefined,
+      analystOwnerName: createForm.requestedBy || undefined,
       assignee: createForm.assignee || undefined,
+      technicalOwnerName: createForm.assignee || undefined,
       requestedBy: createForm.requestedBy || undefined,
+      typeDefinedBy: createForm.demandType ? currentUser?.name || undefined : undefined,
+      typeDefinedAt: createForm.demandType ? new Date().toISOString() : undefined,
       stakeholders: createForm.stakeholders,
       tagIds: createTagIds,
       tags: resolveTagNames(createTagIds),
@@ -633,6 +716,7 @@ export function TaskModal({
           : {},
       autoCompleteFromChildren: false,
       assigneeId: initialAssigneeId,
+      technicalOwnerId: initialAssigneeId,
       generatedFromTaskTemplateId: createForm.generatedFromTaskTemplateId,
       generatedFromTaskTemplateItemId: createForm.generatedFromTaskTemplateItemId,
     };
@@ -770,8 +854,25 @@ export function TaskModal({
       description: nodeForm.description || undefined,
       skillId: nodeForm.skillId || undefined,
       skillName: skills.find((skill) => skill.id === nodeForm.skillId)?.name,
+      demandType: nodeForm.demandType || undefined,
+      suggestedDemandType: nodeSuggestedDemandType,
+      triageComplexity: nodeForm.triageComplexity,
+      expectedBusinessImpact: nodeForm.expectedBusinessImpact,
+      expectedImpactLevel: nodeForm.expectedBusinessImpact,
+      scopeLevel: nodeForm.scopeLevel,
+      valueIntent: nodeForm.valueIntent,
+      valueIntentNotes: nodeForm.valueIntentNotes || undefined,
+      triageStatus:
+        nodeForm.triageComplexity || nodeForm.expectedBusinessImpact || nodeForm.scopeLevel || nodeForm.valueIntent
+          ? 'completed'
+          : 'pending',
+      originTicket: nodeForm.originTicket,
+      originTicketReference: nodeForm.originTicketReference || undefined,
+      sourceSystem: nodeForm.sourceSystem || undefined,
       assignee: nodeForm.assignee || undefined,
+      technicalOwnerName: nodeForm.assignee || undefined,
       requestedBy: nodeForm.requestedBy || undefined,
+      analystOwnerName: nodeForm.requestedBy || undefined,
       stakeholders: nodeForm.stakeholders,
       tagIds: Array.from(new Set((nodeForm.tagIds || []).filter(Boolean))),
       tags: resolveTagNames(nodeForm.tagIds || []),
@@ -781,7 +882,19 @@ export function TaskModal({
       attachments: nodeForm.attachments || [],
       autoCompleteFromChildren: nodeForm.autoCompleteFromChildren ?? false,
       assigneeId: users.find((user) => user.name === nodeForm.assignee)?.id,
+      technicalOwnerId: users.find((user) => user.name === nodeForm.assignee)?.id,
+      typeDefinedBy: nodeForm.demandType ? currentUser?.name || undefined : undefined,
+      typeDefinedAt: nodeForm.demandType ? new Date().toISOString() : undefined,
     };
+
+    const previousDemandType = activeNode.demandType || undefined;
+    const nextDemandType = nodeForm.demandType || undefined;
+    if (previousDemandType && nextDemandType && previousDemandType !== nextDemandType) {
+      const confirmed = window.confirm(
+        `Converter a demanda de "${previousDemandType}" para "${nextDemandType}"? O histórico será mantido.`
+      );
+      if (!confirmed) return;
+    }
 
     if (activeNode.id === liveRootTask.id) {
       updateTask(liveRootTask.id, {
@@ -1209,13 +1322,13 @@ export function TaskModal({
                   className={INPUT_CLASS}
                 />
               </Field>
-              <Field label="Responsavel">
+              <Field label="Responsável técnico">
                 <select
                   value={createForm.assignee}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, assignee: e.target.value }))}
                   className={INPUT_CLASS}
                 >
-                  <option value="">Selecione</option>
+                  <option value="">Sugerir pela escala / definir depois</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.name}>
                       {user.name}
@@ -1272,7 +1385,134 @@ export function TaskModal({
                   ))}
                 </select>
               </Field>
-              <Field label="Solicitante">
+              <Field label="Tipo final da demanda">
+                <select
+                  value={createForm.demandType || ''}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, demandType: e.target.value as DemandType }))
+                  }
+                  className={INPUT_CLASS}
+                >
+                  <option value="">Usar sugestão / definir depois</option>
+                  {demandTypes.map((item) => (
+                    <option key={item.id} value={item.value}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Triagem e classificação</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Critérios simples orientam a sugestão automática, com decisão final humana.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                      Sugerido: {createSuggestedDemandType ? demandTypes.find((item) => item.value === createSuggestedDemandType)?.name || createSuggestedDemandType : 'Aguardando critérios'}
+                    </span>
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-white">
+                      Final: {createForm.demandType ? demandTypes.find((item) => item.value === createForm.demandType)?.name || createForm.demandType : 'Indefinido'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Field label="Complexidade">
+                    <select
+                      value={createForm.triageComplexity || ''}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, triageComplexity: (e.target.value || undefined) as TriageComplexity | undefined }))
+                      }
+                      className={INPUT_CLASS}
+                    >
+                      <option value="">Selecione</option>
+                      {Object.entries(TRIAGE_COMPLEXITY_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Impacto esperado">
+                    <select
+                      value={createForm.expectedBusinessImpact || ''}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, expectedBusinessImpact: (e.target.value || undefined) as ProjectImpactLevel | undefined }))
+                      }
+                      className={INPUT_CLASS}
+                    >
+                      <option value="">Selecione</option>
+                      {IMPACT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Abrangência">
+                    <select
+                      value={createForm.scopeLevel || ''}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, scopeLevel: (e.target.value || undefined) as TriageScopeLevel | undefined }))
+                      }
+                      className={INPUT_CLASS}
+                    >
+                      <option value="">Selecione</option>
+                      {Object.entries(TRIAGE_SCOPE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Intenção de valor">
+                    <select
+                      value={createForm.valueIntent || ''}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, valueIntent: (e.target.value || undefined) as ValueIntent | undefined }))
+                      }
+                      className={INPUT_CLASS}
+                    >
+                      <option value="">Selecione</option>
+                      {Object.entries(VALUE_INTENT_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Observação de valor" className="md:col-span-2">
+                    <textarea
+                      value={createForm.valueIntentNotes || ''}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, valueIntentNotes: e.target.value }))}
+                      rows={3}
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                </div>
+              </div>
+              <div className="md:col-span-2 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(createForm.originTicket)}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, originTicket: e.target.checked }))}
+                    />
+                    Origem em ticket
+                  </label>
+                  <Field label="Ticket de origem">
+                    <input
+                      value={createForm.originTicketReference || ''}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, originTicketReference: e.target.value }))}
+                      placeholder="Ex: CHM-20481"
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                  <Field label="Sistema de origem">
+                    <input
+                      value={createForm.sourceSystem || ''}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, sourceSystem: e.target.value }))}
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                </div>
+              </div>
+              <Field label="Analista responsável">
                 <select
                   value={createForm.requestedBy}
                   onChange={(e) =>
@@ -1666,15 +1906,36 @@ export function TaskModal({
                           <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
                             {TASK_STATUS_LABELS[nodeForm.status as TaskStatus] || 'Sem status'}
                           </span>
-                          {activeNode?.assignee ? (
+                          {activeNode?.technicalOwnerName || activeNode?.assignee ? (
                             <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
                               <User className="h-3.5 w-3.5" />
-                              {activeNode.assignee}
+                              Técnico: {activeNode?.technicalOwnerName || activeNode?.assignee}
+                            </span>
+                          ) : null}
+                          {activeNode?.analystOwnerName || activeNode?.requestedBy ? (
+                            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              <Users className="h-3.5 w-3.5" />
+                              Analista: {activeNode?.analystOwnerName || activeNode?.requestedBy}
                             </span>
                           ) : null}
                           {selectedProject?.group ? (
                             <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
                               Equipe: {selectedProject.group}
+                            </span>
+                          ) : null}
+                          {activeNode?.demandType || selectedProject?.demandType ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              Demanda: {demandTypes.find((item) => item.value === (activeNode?.demandType || selectedProject?.demandType))?.name || activeNode?.demandType || selectedProject?.demandType}
+                            </span>
+                          ) : null}
+                          {activeNode?.originTicket ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              Ticket: {activeNode.originTicketReference || 'Origem atendimento'}
+                            </span>
+                          ) : null}
+                          {activeNode?.valueIntent ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              Valor: {VALUE_INTENT_LABELS[activeNode.valueIntent]}
                             </span>
                           ) : null}
                           {parentBreadcrumb ? (
@@ -1759,21 +2020,37 @@ export function TaskModal({
 
 	                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
 	                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-	                            Solicitante
+	                            Analista responsável
 	                          </p>
 	                          <p className="mt-2 text-sm font-medium text-slate-900">
-	                            {activeNode?.requestedBy || 'Não informado'}
+	                            {activeNode?.analystOwnerName || activeNode?.requestedBy || 'Não informado'}
 	                          </p>
 	                        </div>
 
 	                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
 	                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-	                            Prazo
+	                            Responsável técnico
 	                          </p>
 	                          <p className="mt-2 text-sm font-medium text-slate-900">
-	                            {activeNode?.dueDate
-	                              ? new Date(activeNode.dueDate).toLocaleDateString('pt-BR')
-	                              : 'Sem prazo'}
+	                            {activeNode?.technicalOwnerName || activeNode?.assignee || 'Ainda não definido'}
+	                          </p>
+	                        </div>
+
+	                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+	                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+	                            Tipo sugerido
+	                          </p>
+	                          <p className="mt-2 text-sm font-medium text-slate-900">
+	                            {activeNode?.suggestedDemandType ? demandTypes.find((item) => item.value === activeNode.suggestedDemandType)?.name || activeNode.suggestedDemandType : 'Aguardando triagem'}
+	                          </p>
+	                        </div>
+
+	                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+	                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+	                            Intenção de valor
+	                          </p>
+	                          <p className="mt-2 text-sm font-medium text-slate-900">
+	                            {activeNode?.valueIntent ? VALUE_INTENT_LABELS[activeNode.valueIntent] : 'Não definida'}
 	                          </p>
 	                        </div>
 	                      </div>
@@ -1909,7 +2186,7 @@ export function TaskModal({
                         className={INPUT_CLASS}
                       />
                     </Field>
-                    <Field label="Responsavel">
+                    <Field label="Responsável técnico">
                       <select
                         value={nodeForm.assignee}
                         onChange={(e) => setNodeForm((prev) => ({ ...prev, assignee: e.target.value }))}
@@ -1957,7 +2234,133 @@ export function TaskModal({
                           ))}
                       </select>
                     </Field>
-                    <Field label="Solicitante">
+                    <Field label="Tipo final da demanda">
+                      <select
+                        value={nodeForm.demandType || ''}
+                        onChange={(e) =>
+                          setNodeForm((prev) => ({ ...prev, demandType: e.target.value as DemandType }))
+                        }
+                        className={INPUT_CLASS}
+                      >
+                        <option value="">Usar sugestão / definir depois</option>
+                        {demandTypes.map((item) => (
+                          <option key={item.id} value={item.value}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Triagem e classificação</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            A sugestão automática ajuda a padronizar a entrada sem bloquear ajuste manual.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                            Sugerido: {nodeSuggestedDemandType ? demandTypes.find((item) => item.value === nodeSuggestedDemandType)?.name || nodeSuggestedDemandType : 'Aguardando critérios'}
+                          </span>
+                          <span className="rounded-full bg-slate-900 px-3 py-1 text-white">
+                            Final: {nodeForm.demandType ? demandTypes.find((item) => item.value === nodeForm.demandType)?.name || nodeForm.demandType : 'Indefinido'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <Field label="Complexidade">
+                          <select
+                            value={nodeForm.triageComplexity || ''}
+                            onChange={(e) =>
+                              setNodeForm((prev) => ({ ...prev, triageComplexity: (e.target.value || undefined) as TriageComplexity | undefined }))
+                            }
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">Selecione</option>
+                            {Object.entries(TRIAGE_COMPLEXITY_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Impacto esperado">
+                          <select
+                            value={nodeForm.expectedBusinessImpact || ''}
+                            onChange={(e) =>
+                              setNodeForm((prev) => ({ ...prev, expectedBusinessImpact: (e.target.value || undefined) as ProjectImpactLevel | undefined }))
+                            }
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">Selecione</option>
+                            {IMPACT_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Abrangência">
+                          <select
+                            value={nodeForm.scopeLevel || ''}
+                            onChange={(e) =>
+                              setNodeForm((prev) => ({ ...prev, scopeLevel: (e.target.value || undefined) as TriageScopeLevel | undefined }))
+                            }
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">Selecione</option>
+                            {Object.entries(TRIAGE_SCOPE_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Intenção de valor">
+                          <select
+                            value={nodeForm.valueIntent || ''}
+                            onChange={(e) =>
+                              setNodeForm((prev) => ({ ...prev, valueIntent: (e.target.value || undefined) as ValueIntent | undefined }))
+                            }
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">Selecione</option>
+                            {Object.entries(VALUE_INTENT_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Observação de valor" className="md:col-span-2">
+                          <textarea
+                            value={nodeForm.valueIntentNotes || ''}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, valueIntentNotes: e.target.value }))}
+                            rows={3}
+                            className={INPUT_CLASS}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                    <div className="md:col-span-2 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(nodeForm.originTicket)}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, originTicket: e.target.checked }))}
+                          />
+                          Origem em ticket
+                        </label>
+                        <Field label="Ticket de origem">
+                          <input
+                            value={nodeForm.originTicketReference || ''}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, originTicketReference: e.target.value }))}
+                            className={INPUT_CLASS}
+                          />
+                        </Field>
+                        <Field label="Sistema de origem">
+                          <input
+                            value={nodeForm.sourceSystem || ''}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, sourceSystem: e.target.value }))}
+                            className={INPUT_CLASS}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                    <Field label="Analista responsável">
                       <select
                         value={nodeForm.requestedBy}
                         onChange={(e) =>

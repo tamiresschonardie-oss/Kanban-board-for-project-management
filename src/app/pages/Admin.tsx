@@ -2,6 +2,7 @@ import { Component, ReactNode } from 'react';
 import { Users, UsersIcon, Building2, UserCircle, Package, Server, FolderKanban, Settings, Tag, GitBranch, Target, Bot, CheckSquare, CalendarDays, BrainCircuit } from 'lucide-react';
 import { UsersCRUD } from '../components/admin/UsersCRUD';
 import { TeamsCRUD } from '../components/admin/TeamsCRUD';
+import { WorkspacesCRUD } from '../components/admin/WorkspacesCRUD';
 import { ClientsCRUD } from '../components/admin/ClientsCRUD';
 import { StakeholdersCRUD } from '../components/admin/StakeholdersCRUD';
 import { ProductsCRUD } from '../components/admin/ProductsCRUD';
@@ -14,6 +15,7 @@ import { AutomationsCRUD } from '../components/admin/AutomationsCRUD';
 import { TaskTemplatesCRUD } from '../components/admin/TaskTemplatesCRUD';
 import { MeetingRoomsCRUD } from '../components/admin/MeetingRoomsCRUD';
 import { SkillsCRUD } from '../components/admin/SkillsCRUD';
+import { WeeklyDemandAssignmentsCRUD } from '../components/admin/WeeklyDemandAssignmentsCRUD';
 import { useAdmin } from '../context/AdminContext';
 import { canUserPerform, isPmoUser } from '../utils/permissions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -108,6 +110,10 @@ export function Admin() {
                     <UsersIcon className="w-4 h-4" />
                     Equipes
                   </TabsTrigger>
+                  <TabsTrigger value="workspaces" className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900">
+                    <Building2 className="w-4 h-4" />
+                    Workspaces
+                  </TabsTrigger>
                   <TabsTrigger value="clients" className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900">
                     <Building2 className="w-4 h-4" />
                     Clientes
@@ -144,6 +150,10 @@ export function Admin() {
                     <CalendarDays className="w-4 h-4" />
                     Salas
                   </TabsTrigger>
+                  <TabsTrigger value="weekly-demand-assignments" className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900">
+                    <CalendarDays className="w-4 h-4" />
+                    Escala semanal
+                  </TabsTrigger>
                 </>
               )}
               {canManageEap && (
@@ -178,6 +188,11 @@ export function Admin() {
                 <TabsContent value="teams">
                   <SafeAdminSection title="Equipes">
                   <TeamsCRUD />
+                  </SafeAdminSection>
+                </TabsContent>
+                <TabsContent value="workspaces">
+                  <SafeAdminSection title="Workspaces">
+                  <WorkspacesCRUD />
                   </SafeAdminSection>
                 </TabsContent>
                 <TabsContent value="clients">
@@ -223,6 +238,11 @@ export function Admin() {
                 <TabsContent value="meeting-rooms">
                   <SafeAdminSection title="Salas">
                   <MeetingRoomsCRUD />
+                  </SafeAdminSection>
+                </TabsContent>
+                <TabsContent value="weekly-demand-assignments">
+                  <SafeAdminSection title="Escala semanal">
+                  <WeeklyDemandAssignmentsCRUD />
                   </SafeAdminSection>
                 </TabsContent>
               </>

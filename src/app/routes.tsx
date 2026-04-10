@@ -120,6 +120,14 @@ export const router = createBrowserRouter([
             lazy: lazyRoute(() => import('./pages/Dashboards'), 'Dashboards'),
           },
           {
+            path: 'results',
+            lazy: lazyRoute(() => import('./pages/ProjectResults'), 'ProjectResults'),
+          },
+          {
+            path: 'results/dashboard',
+            lazy: lazyRoute(() => import('./pages/ValueDashboard'), 'ValueDashboard'),
+          },
+          {
             path: 'gantt',
             lazy: lazyRoute(() => import('./pages/GanttView'), 'GanttView'),
           },

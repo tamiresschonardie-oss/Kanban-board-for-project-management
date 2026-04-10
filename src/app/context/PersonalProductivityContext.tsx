@@ -57,9 +57,16 @@ interface StorageShape {
   notes: Note[];
 }
 
-const PersonalProductivityContext = createContext<PersonalProductivityContextType | undefined>(
-  undefined
-);
+const personalProductivityContextRegistry = globalThis as typeof globalThis & {
+  __crisduPersonalProductivityContext?: React.Context<PersonalProductivityContextType | undefined>;
+};
+
+const PersonalProductivityContext =
+  personalProductivityContextRegistry.__crisduPersonalProductivityContext ||
+  createContext<PersonalProductivityContextType | undefined>(undefined);
+
+personalProductivityContextRegistry.__crisduPersonalProductivityContext =
+  PersonalProductivityContext;
 
 function getBrowserNotificationPermission(): NotificationPermission | 'unsupported' {
   if (typeof window === 'undefined' || typeof Notification === 'undefined') {

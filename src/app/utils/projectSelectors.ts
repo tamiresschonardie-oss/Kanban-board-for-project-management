@@ -1,4 +1,14 @@
-import { OperationalPriorityEntry, Project, ProjectSituation, Subtask, User, WBSTask } from '../types';
+import {
+  OperationalPriorityEntry,
+  Project,
+  ProjectImpactLevel,
+  ProjectResultEvaluation,
+  ProjectResultStatus,
+  ProjectSituation,
+  Subtask,
+  User,
+  WBSTask,
+} from '../types';
 import { isTaskNodeDeleted } from '../selectors/taskSelectors';
 import { getProjectProgress } from './progressCalculator';
 import { getDynamicYearOptions } from './yearOptions';
@@ -287,6 +297,24 @@ export function getProjectRequester(project: Project): string {
   return project.requestedBy || '';
 }
 
+export function getProjectResultStatus(project: Project): ProjectResultStatus {
+  return project.resultStatus || 'nao_iniciado';
+}
+
+export function getProjectImpactLevel(project: Project): ProjectImpactLevel {
+  return project.impactLevel || 'medio';
+}
+
+export function getProjectResultEvaluations(project: Project): ProjectResultEvaluation[] {
+  return (project.resultEvaluations || []).slice().sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt));
+}
+
+export function getProjectNextPendingResultEvaluation(project: Project): ProjectResultEvaluation | undefined {
+  return getProjectResultEvaluations(project).find(
+    (evaluation) => evaluation.status === 'pendente' || evaluation.status === 'em_avaliacao'
+  );
+}
+
 export function getProjectMetrics(project: Project) {
   const hoursRemaining = project.metrics?.hoursRemaining ?? project.hoursRemaining ?? FALLBACK_PROJECT_METRICS.hoursRemaining;
   const totalTimeTracked =
@@ -504,6 +532,14 @@ export function isProjectCompleted(project: Project): boolean {
   return isProjectDelivered(project);
 }
 
+export function isProjectInOperationalFlow(project: Project): boolean {
+  return !isProjectInCompletedPhase(project);
+}
+
+export function isProjectInResultTracking(project: Project): boolean {
+  return (project.resultStatus || 'nao_iniciado') !== 'nao_iniciado';
+}
+
 export function isProjectDelivered(project: Project): boolean {
   return isProjectInCompletedPhase(project) && Boolean(getProjectDeliveredAt(project));
 }
@@ -557,8 +593,10 @@ export function getRecentProjectActivities(projects: Project[], limit = 8) {
     .slice(0, limit);
 }
 
-export function getWorkspaceProjects(projects: Project[], teamName: string) {
-  return projects.filter((project) => project.group === teamName);
+export function getWorkspaceProjects(projects: Project[], workspaceScope: string | string[]) {
+  const scopes = Array.isArray(workspaceScope) ? workspaceScope : [workspaceScope];
+  const normalizedScopes = scopes.filter(Boolean);
+  return projects.filter((project) => normalizedScopes.includes(project.group || ''));
 }
 
 export function getExecutiveScopedProjects(projects: Project[], currentUser?: User) {

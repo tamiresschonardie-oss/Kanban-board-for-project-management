@@ -29,6 +29,11 @@ import { applyPriorityCycleFocusToProjects } from '../utils/priorityCycles';
 import { createNotification, extractMentionedUsers } from '../utils/notifications';
 import { normalizeDependencyRecord } from '../utils/taskDependencies';
 import {
+  calculateNextResultEvaluation,
+  normalizeProjectValueState,
+  startProjectValueCycle,
+} from '../services/projectValueService';
+import {
   applyRoleAssignmentsToPhases,
   normalizeProjectRoleAssignments,
 } from '../utils/phaseOwnership';
@@ -61,6 +66,7 @@ interface ProjectContextType {
   ) => void;
   getWorkspaceProjectStages: (workspaceId?: string) => WorkspaceProjectStageDefinition[];
   createWorkspaceProjectStage: (workspaceId: string) => WorkspaceProjectStageDefinition | null;
+  ensureWorkspaceDefinitions: (workspaceId: string) => void;
   updateWorkspaceProjectStage: (
     workspaceId: string,
     stageId: string,
@@ -77,7 +83,15 @@ interface ProjectContextType {
   deleteProjectComment: (projectId: string, commentId: string) => boolean;
 }
 
-const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+const projectContextRegistry = globalThis as typeof globalThis & {
+  __crisduProjectContext?: React.Context<ProjectContextType | undefined>;
+};
+
+const ProjectContext =
+  projectContextRegistry.__crisduProjectContext ||
+  createContext<ProjectContextType | undefined>(undefined);
+
+projectContextRegistry.__crisduProjectContext = ProjectContext;
 
 const createEntityId = (prefix: string) =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -1367,7 +1381,7 @@ const normalizeProject = (
           projectRole: undefined,
         }));
 
-  const normalizedProject = {
+  const normalizedProject = normalizeProjectValueState({
     ...project,
     governance,
     execution: {
@@ -1387,12 +1401,33 @@ const normalizeProject = (
     projectRoleAssignments,
     stakeholders: stakeholderAssignments.map((assignment) => assignment.name),
     expectedBenefits: project.expectedBenefits || [],
+    realizedBenefits: project.realizedBenefits || [],
+    benefits: project.benefits || [],
     attachments: project.attachments || [],
     isWeeklyFocus: Boolean(project.isWeeklyFocus),
     weeklyUpdate: project.weeklyUpdate || '',
     governanceOrder: project.governanceOrder ?? 0,
     activities: project.activities || [],
     comments: project.comments || [],
+    resultMaturityType: project.resultMaturityType || 'medio_prazo',
+    resultStatus: project.resultStatus || 'nao_iniciado',
+    resultScheduleMode:
+      project.resultScheduleMode ||
+      ((project.resultCustomEvaluationOffsetsDays || []).length > 0 ? 'custom' : 'default'),
+    resultOwnerId: project.resultOwnerId,
+    resultCustomEvaluationOffsetsDays: project.resultCustomEvaluationOffsetsDays || [],
+    impactLevel: project.impactLevel || 'medio',
+    nextResultEvaluationAt:
+      project.nextResultEvaluationAt ||
+      calculateNextResultEvaluation({
+        deliveredAt: project.deliveredAt || project.completionDate,
+        maturityType: project.resultMaturityType || 'medio_prazo',
+        manualDate: project.nextResultEvaluationAt,
+        customOffsetsDays: project.resultCustomEvaluationOffsetsDays,
+      }),
+    valueRealizationSummary: project.valueRealizationSummary || undefined,
+    projectKpis: project.projectKpis || [],
+    resultEvaluations: project.resultEvaluations || [],
     status: currentPhaseId,
     situation,
     workspaceBoardStates: project.workspaceBoardStates || [],
@@ -1407,7 +1442,7 @@ const normalizeProject = (
     deliveredAt: project.deliveredAt || project.completionDate,
     requester: project.requestedBy || project.requester,
     isPaused: situation === PROJECT_SITUATIONS.PAUSADO,
-  };
+  });
 
   const projectWithGovernance = governancePhasesState?.length
     ? syncProjectGovernancePhases(normalizedProject, governancePhasesState)
@@ -1420,7 +1455,16 @@ const normalizeProject = (
         ? buildWorkspaceProjectStages(workspaceId, storedWorkspaceProjectStages)
         : buildWorkspaceProjectStages(workspaceId);
 
-  return syncProjectWorkspaceBoardStates(projectWithGovernance, workspaceStagesToApply);
+  const projectWithWorkspaceStates = syncProjectWorkspaceBoardStates(
+    projectWithGovernance,
+    workspaceStagesToApply
+  );
+
+  // Quando a execução termina, o projeto continua concluído para o Labs.
+  // O acompanhamento de valor segue em paralelo, fora do Kanban operacional.
+  return isProjectInCompletedPhase(projectWithWorkspaceStates)
+    ? startProjectValueCycle(projectWithWorkspaceStates)
+    : projectWithWorkspaceStates;
 };
 
 const parseProjectStorage = (): Project[] | null => {
@@ -1506,13 +1550,20 @@ const applyProjectDeliveryTransition = (
   const wasInCompletedPhase = isProjectInCompletedPhase(previousProject);
   const isInCompletedPhase = isProjectInCompletedPhase(nextProject);
 
+  // Esta transição separa explicitamente os dois ciclos do produto:
+  // concluir no Kanban encerra a execução, mas inicia/prepara o ciclo de resultado.
+  // Assim, o projeto sai do radar operacional sem desaparecer do acompanhamento de valor.
   if (!wasInCompletedPhase && isInCompletedPhase && !nextProject.deliveredAt) {
     const deliveredAt = new Date().toISOString();
-    return {
+    return startProjectValueCycle({
       ...nextProject,
       deliveredAt,
       completionDate: nextProject.completionDate || deliveredAt,
-    };
+    });
+  }
+
+  if (!wasInCompletedPhase && isInCompletedPhase) {
+    return startProjectValueCycle(nextProject);
   }
 
   return nextProject;
@@ -1683,6 +1734,34 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     workspaceProjectStages
       .filter((stage) => normalizeWorkspaceId(stage.workspaceId) === normalizeWorkspaceId(workspaceId))
       .sort((a, b) => a.order - b.order);
+
+  const ensureWorkspaceDefinitions: ProjectContextType['ensureWorkspaceDefinitions'] = (workspaceId) => {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+    const hasGovernance = governancePhases.some(
+      (phase) => normalizeWorkspaceId(phase.workspaceId) === normalizedWorkspaceId
+    );
+    const hasStages = workspaceProjectStages.some(
+      (stage) => normalizeWorkspaceId(stage.workspaceId) === normalizedWorkspaceId
+    );
+
+    if (!hasGovernance) {
+      setGovernancePhases((prev) => [
+        ...prev,
+        ...buildWorkspaceGovernancePhases(normalizedWorkspaceId).filter(
+          (phase) => !prev.some((candidate) => candidate.id === phase.id)
+        ),
+      ]);
+    }
+
+    if (!hasStages) {
+      setWorkspaceProjectStages((prev) => [
+        ...prev,
+        ...buildWorkspaceProjectStages(normalizedWorkspaceId).filter(
+          (stage) => !prev.some((candidate) => candidate.id === stage.id)
+        ),
+      ]);
+    }
+  };
 
   const getCompletedGovernancePhase = (workspaceId?: string) => {
     const phases = getWorkspaceGovernancePhases(workspaceId);
@@ -2893,6 +2972,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         deleteGovernancePhase,
         getWorkspaceProjectStages,
         createWorkspaceProjectStage,
+        ensureWorkspaceDefinitions,
         updateWorkspaceProjectStage,
         reorderWorkspaceProjectStages,
         deleteWorkspaceProjectStage,

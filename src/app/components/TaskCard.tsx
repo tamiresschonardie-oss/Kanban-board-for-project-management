@@ -5,6 +5,7 @@ import { TaskOrderControls } from './TaskOrderControls';
 import { useTasks } from '../context/TaskContext';
 import { normalizeTaskStatus, TASK_STATUS_SHORT_LABELS } from '../utils/taskStatus';
 import { TASK_SCOPE_BADGE_CLASSNAMES, TASK_SCOPE_LABELS } from '../utils/taskScope';
+import { VALUE_INTENT_LABELS } from '../utils/demandTriage';
 
 interface TaskCardProps {
   task: WBSTask;
@@ -161,8 +162,35 @@ export function TaskCard({
             {`${enrichedTask?.predecessorDependencies?.length || 0}/${enrichedTask?.successorDependencies?.length || 0}`}
           </span>
         ) : null}
-        {task.assignee && (
-          <span className="rounded-full bg-slate-50 px-2.5 py-1 truncate">👤 {task.assignee}</span>
+        {(task.technicalOwnerName || task.assignee) && (
+          <span className="rounded-full bg-slate-50 px-2.5 py-1 truncate">
+            Técnico: {task.technicalOwnerName || task.assignee}
+          </span>
+        )}
+        {(task.analystOwnerName || task.requestedBy) && (
+          <span className="rounded-full bg-slate-50 px-2.5 py-1 truncate">
+            Analista: {task.analystOwnerName || task.requestedBy}
+          </span>
+        )}
+        {task.sprintId && typeof task.sprintOrder === 'number' ? (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 truncate text-amber-700">
+            Sprint #{task.sprintOrder + 1}
+          </span>
+        ) : null}
+        {task.demandType && (
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 truncate text-blue-700">
+            {task.demandType}
+          </span>
+        )}
+        {task.originTicket && (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 truncate text-amber-700">
+            {task.originTicketReference || 'Ticket'}
+          </span>
+        )}
+        {task.valueIntent && (
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 truncate text-emerald-700">
+            {VALUE_INTENT_LABELS[task.valueIntent]}
+          </span>
         )}
         {task.dueDate && (
           <span className="rounded-full bg-slate-50 px-2.5 py-1">📅 {new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>

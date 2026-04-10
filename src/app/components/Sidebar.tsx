@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router';
-import { Plus, Users, ChevronDown, ChevronRight, Building2, Settings, Home as HomeIcon, CheckSquare, CalendarDays, LogOut, LayoutGrid } from 'lucide-react';
+import { Plus, Users, ChevronDown, ChevronRight, Building2, Settings, Home as HomeIcon, CheckSquare, CalendarDays, LogOut, LayoutGrid, TrendingUp, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import { useAdmin } from '../context/AdminContext';
 import { canAccessGovernance, canUserPerform, getRoleLabel, isPmoUser } from '../utils/permissions';
@@ -8,15 +8,25 @@ import { getUserTeams } from '../utils/userTeams';
 export function Sidebar({ onCreateProject }: { onCreateProject: () => void }) {
   const [workspacesExpanded, setWorkspacesExpanded] = useState(false);
   const navigate = useNavigate();
-  const { currentUser, logout } = useAdmin();
+  const { currentUser, logout, teams, workspaces } = useAdmin();
 
   const canCreateProject = canUserPerform(currentUser, 'project:create');
   const canAccessAdmin = isPmoUser(currentUser);
   const canSeeGovernance = canAccessGovernance(currentUser);
-  const visibleWorkspaces =
-    currentUser?.role === 'user'
-      ? getUserTeams(currentUser)
-      : ['Fábrica', 'AIO', 'Infra'];
+  const visibleWorkspaces = (() => {
+    const activeWorkspaces = workspaces
+      .filter((workspace) => workspace.status === 'active' && !workspace.deletedAt)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+    if (currentUser?.role !== 'user') {
+      return activeWorkspaces;
+    }
+
+    const userTeams = new Set(getUserTeams(currentUser));
+    const teamIds = teams.filter((team) => userTeams.has(team.name)).map((team) => team.id);
+    return activeWorkspaces.filter((workspace) => workspace.teamIds.some((teamId) => teamIds.includes(teamId)));
+  })();
 
   return (
     <aside className="flex h-screen w-68 flex-col border-r border-slate-200/70 bg-sidebar/90 backdrop-blur-xl">
@@ -107,6 +117,28 @@ export function Sidebar({ onCreateProject }: { onCreateProject: () => void }) {
               <Building2 className="h-4 w-4" />
               <span className="flex-1 text-left font-medium">Governança</span>
             </NavLink>
+            <NavLink
+              to="/results"
+              className={({ isActive }) => 
+                `flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-all ${
+                  isActive ? 'bg-sidebar-accent text-slate-950 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.06)]' : 'text-slate-500 hover:bg-white/75 hover:text-slate-800'
+                }`
+              }
+            >
+              <TrendingUp className="h-4 w-4" />
+              <span className="flex-1 text-left font-medium">Resultados</span>
+            </NavLink>
+            <NavLink
+              to="/results/dashboard"
+              className={({ isActive }) => 
+                `flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-all ${
+                  isActive ? 'bg-sidebar-accent text-slate-950 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.06)]' : 'text-slate-500 hover:bg-white/75 hover:text-slate-800'
+                }`
+              }
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span className="flex-1 text-left font-medium">Valor gerado</span>
+            </NavLink>
           </div>
         )}
         </div>
@@ -152,16 +184,16 @@ export function Sidebar({ onCreateProject }: { onCreateProject: () => void }) {
               {visibleWorkspaces.map((workspace) => {
                 const accent = 'bg-white text-slate-900 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.04)]';
                 const dot =
-                  workspace === 'Fábrica'
+                  workspace.name === 'Fábrica'
                     ? 'bg-blue-500'
-                    : workspace === 'AIO'
+                    : workspace.name === 'AIO'
                       ? 'bg-purple-500'
                       : 'bg-green-500';
 
                 return (
                   <NavLink
-                    key={workspace}
-                    to={`/workspace/${workspace}`}
+                    key={workspace.id}
+                    to={`/workspace/${workspace.id}`}
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-all ${
                         isActive ? accent : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
@@ -169,7 +201,7 @@ export function Sidebar({ onCreateProject }: { onCreateProject: () => void }) {
                     }
                   >
                     <div className={`h-2 w-2 rounded-full ${dot}`} />
-                    <span className="font-medium">{workspace}</span>
+                    <span className="font-medium">{workspace.name}</span>
                   </NavLink>
                 );
               })}

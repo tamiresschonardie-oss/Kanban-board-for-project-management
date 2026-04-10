@@ -67,6 +67,7 @@ import { applyDynamicFilters, DynamicFilterFieldDefinition } from '../utils/dyna
 import { FilterCondition, SavedView } from '../types';
 import { useSavedViews } from '../hooks/useSavedViews';
 import { AppErrorBoundary } from '../components/shared/AppErrorBoundary';
+import { VALUE_INTENT_LABELS } from '../utils/demandTriage';
 import {
   getTaskStatusFromVisualColumn,
   getTaskVisualColumn,
@@ -95,6 +96,25 @@ const ITEM_TYPE_STYLES: Record<string, string> = {
   Subtarefa: 'bg-blue-100 text-blue-700',
   Subnivel: 'bg-indigo-100 text-indigo-700',
 };
+
+function sortTasksForExecutionQueue(tasks: EnrichedTask[]) {
+  const base = sortTasksByOperationalPriority(tasks);
+  return base
+    .map((task, index) => ({ task, index }))
+    .sort((left, right) => {
+      if (
+        left.task.sprintId &&
+        right.task.sprintId &&
+        left.task.sprintId === right.task.sprintId &&
+        typeof left.task.sprintOrder === 'number' &&
+        typeof right.task.sprintOrder === 'number'
+      ) {
+        return left.task.sprintOrder - right.task.sprintOrder || left.index - right.index;
+      }
+      return left.index - right.index;
+    })
+    .map((entry) => entry.task);
+}
 
 function normalizeMyTasksViewMode(value?: string | null): ViewMode {
   if (value === 'dashboard') return 'dashboard';
@@ -304,9 +324,29 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
             {OFFICIAL_STATUS_LABELS[normalizedStatus] || 'Projeto'}
           </span>
-          {task.assignee && (
+          {(task.technicalOwnerName || task.assignee) && (
             <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
-              Resp: {task.assignee}
+              Técnico: {task.technicalOwnerName || task.assignee}
+            </span>
+          )}
+          {(task.analystOwnerName || task.requestedBy) && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+              Analista: {task.analystOwnerName || task.requestedBy}
+            </span>
+          )}
+          {task.sprintId && typeof task.sprintOrder === 'number' && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+              Sprint #{task.sprintOrder + 1}
+            </span>
+          )}
+          {task.originTicket && (
+            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-800">
+              {task.originTicketReference || 'Ticket'}
+            </span>
+          )}
+          {task.valueIntent && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+              {VALUE_INTENT_LABELS[task.valueIntent]}
             </span>
           )}
           {(task.predecessorDependencies?.length || task.successorDependencies?.length) ? (
@@ -348,7 +388,7 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
 
         <div className="grid gap-2 md:grid-cols-3">
           <label className="space-y-1">
-            <span className="text-[11px] font-medium text-slate-500">Responsável</span>
+            <span className="text-[11px] font-medium text-slate-500">Responsável técnico</span>
             <select
               value={task.assigneeId || ''}
               onChange={(event) => {
@@ -831,7 +871,7 @@ export function MyTasksRefined() {
 
   // Apply filters
   const filteredTasks = useMemo(() => {
-    return sortTasksByOperationalPriority(
+    return sortTasksForExecutionQueue(
       applyDynamicFilters(
         filterTasks(myTasksWithOperationalPriority, projects, effectiveFilters),
         dynamicConditions,
@@ -926,7 +966,7 @@ export function MyTasksRefined() {
 
     const sourceColumnId = getTaskStageForCurrentUser(draggedTask as EnrichedTask);
     const getColumnTasks = (targetColumnId: string) =>
-      sortTasksByOperationalPriority(
+      sortTasksForExecutionQueue(
         tasksWithPriority.filter(
           (task) => getTaskStageForCurrentUser(task as EnrichedTask) === targetColumnId
         )
@@ -1093,7 +1133,7 @@ export function MyTasksRefined() {
     });
 
     Object.keys(grouped).forEach((columnId) => {
-      grouped[columnId] = sortTasksByOperationalPriority(grouped[columnId]);
+      grouped[columnId] = sortTasksForExecutionQueue(grouped[columnId]);
     });
 
     return grouped;
