@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { LayoutGrid, LayoutList, Users, X } from 'lucide-react';
+import { LayoutGrid, LayoutList, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { KanbanPageHeader, KanbanToolbar } from '../components/kanban/KanbanLayout';
 import { GovernanceFilters } from '../components/GovernanceFilters';
@@ -26,61 +26,90 @@ type WorkspaceTab = 'kanban' | 'list';
 export function TeamWorkspace() {
   const navigate = useNavigate();
   const { openProjectDetail } = useProjectDetailNavigation();
-  const { team } = useParams<{ team: string }>();
+  const { team: workspaceParam } = useParams<{ team: string }>();
   const { projects } = useProjects();
-  const { currentUser } = useAdmin();
+  const { currentUser, teams, workspaces } = useAdmin();
   const { allTasks } = useTasks();
   const canManagePhases = canUserPerform(currentUser, 'governance:manage');
   const canMoveProjects = !!currentUser && currentUser.status === 'active';
-  const isGlobalWorkspace = !team;
+  const isGlobalWorkspace = !workspaceParam;
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('kanban');
 
-  const accessibleTeams = useMemo(() => {
-    if (currentUser?.role === 'user') return getUserTeams(currentUser);
-    return Array.from(new Set(projects.map((project) => project.group).filter(Boolean) as string[]));
-  }, [currentUser, projects]);
+  const accessibleWorkspaces = useMemo(() => {
+    const activeItems = workspaces
+      .filter((workspace) => workspace.status === 'active' && !workspace.deletedAt)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
-  const initialTeamFilter = useMemo(
-    () => (team ? [team] : accessibleTeams),
-    [accessibleTeams, team]
+    if (currentUser?.role !== 'user') return activeItems;
+
+    const userTeams = new Set(getUserTeams(currentUser));
+    const accessibleTeamIds = teams.filter((team) => userTeams.has(team.name)).map((team) => team.id);
+    return activeItems.filter((workspace) => workspace.teamIds.some((teamId) => accessibleTeamIds.includes(teamId)));
+  }, [currentUser, teams, workspaces]);
+
+  const selectedWorkspace = useMemo(
+    () => accessibleWorkspaces.find((workspace) => workspace.id === workspaceParam) || null,
+    [accessibleWorkspaces, workspaceParam]
   );
+
+  const accessibleTeamNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          accessibleWorkspaces.flatMap((workspace) =>
+            teams
+              .filter((team) => workspace.teamIds.includes(team.id))
+              .map((team) => team.name)
+          )
+        )
+      ),
+    [accessibleWorkspaces, teams]
+  );
+
+  const scopedTeamNames = useMemo(() => {
+    if (selectedWorkspace) {
+      return teams
+        .filter((team) => selectedWorkspace.teamIds.includes(team.id))
+        .map((team) => team.name);
+    }
+    return accessibleTeamNames;
+  }, [selectedWorkspace, teams, accessibleTeamNames]);
+
   const [filters, setFilters] = useState({
     ...DEFAULT_PROJECT_FILTERS,
-    team: initialTeamFilter,
+    team: scopedTeamNames,
   });
 
   useEffect(() => {
     setFilters((previous) => ({
       ...previous,
-      team: team ? [team] : accessibleTeams,
+      team: scopedTeamNames,
     }));
-  }, [accessibleTeams, team]);
+  }, [scopedTeamNames]);
 
-  const isRestrictedWorkspaceView =
-    currentUser?.role === 'user' &&
-    Boolean(team) &&
-    !accessibleTeams.includes(team);
+  const isRestrictedWorkspaceView = Boolean(workspaceParam) && !selectedWorkspace;
 
   const workspaceProjects = useMemo(
     () =>
       projects.filter((project) =>
-        filters.team.length > 0 ? filters.team.includes(project.group || '') : accessibleTeams.includes(project.group || '')
+        filters.team.length > 0
+          ? filters.team.includes(project.group || '')
+          : accessibleTeamNames.includes(project.group || '')
       ),
-    [accessibleTeams, filters.team, projects]
+    [accessibleTeamNames, filters.team, projects]
   );
-  const filterOptions = useMemo(
-    () => getProjectFilterOptions(workspaceProjects),
-    [workspaceProjects]
-  );
+
+  const filterOptions = useMemo(() => getProjectFilterOptions(workspaceProjects), [workspaceProjects]);
+
   const visibleProjects = useMemo(
-    () => {
-      return filterProjects(projects, {
+    () =>
+      filterProjects(projects, {
         ...filters,
         searchTerm: '',
-        team: filters.team.length > 0 ? filters.team : accessibleTeams,
-      });
-    },
-    [accessibleTeams, filters, projects]
+        team: filters.team.length > 0 ? filters.team : scopedTeamNames,
+      }),
+    [filters, projects, scopedTeamNames]
   );
 
   if (isRestrictedWorkspaceView) {
@@ -89,7 +118,7 @@ export function TeamWorkspace() {
         <div className="rounded-2xl border border-yellow-200 bg-white px-8 py-10 text-center shadow-sm">
           <h1 className="text-2xl font-bold text-gray-900">Workspace restrito</h1>
           <p className="mt-2 text-gray-600">
-            O perfil atual pode visualizar apenas o workspace da própria equipe.
+            O perfil atual pode visualizar apenas os workspaces vinculados às equipes permitidas.
           </p>
           <button
             onClick={() => navigate('/workspace')}
@@ -105,11 +134,9 @@ export function TeamWorkspace() {
   const stats = {
     total: visibleProjects.length,
     inProgress: visibleProjects.filter(
-      (project) =>
-        getProjectMetrics(project).progress > 0 && getProjectMetrics(project).progress < 100
+      (project) => getProjectMetrics(project).progress > 0 && getProjectMetrics(project).progress < 100
     ).length,
-    completed: visibleProjects.filter((project) => getProjectMetrics(project).progress === 100)
-      .length,
+    completed: visibleProjects.filter((project) => getProjectMetrics(project).progress === 100).length,
     avgProgress:
       visibleProjects.length > 0
         ? Math.round(
@@ -134,13 +161,16 @@ export function TeamWorkspace() {
     filters.year.length > 0 ||
     filters.onlyWeeklyFocus ||
     (isGlobalWorkspace
-      ? filters.team.length !== accessibleTeams.length
-      : filters.team.join('|') !== (team ? [team] : []).join('|'));
+      ? filters.team.length !== scopedTeamNames.length
+      : filters.team.join('|') !== scopedTeamNames.join('|'));
 
-  const workspaceTitle = isGlobalWorkspace ? 'Workspace Principal' : `Workspace - ${team}`;
+  const workspaceTitle = isGlobalWorkspace ? 'Workspace Principal' : `Workspace - ${selectedWorkspace?.name}`;
+  const linkedTeamNames = selectedWorkspace
+    ? teams.filter((team) => selectedWorkspace.teamIds.includes(team.id)).map((team) => team.name)
+    : [];
   const workspaceDescription = isGlobalWorkspace
-    ? 'Quadro operacional principal com todos os projetos em execução, filtros globais e foco na entrega do dia a dia.'
-    : `Recorte operacional do workspace ${team}, mantendo a mesma base de execução do quadro principal.`;
+    ? 'Quadro operacional principal com todos os workspaces acessíveis e foco na execução do dia a dia.'
+    : `Recorte operacional do workspace ${selectedWorkspace?.name}, conectado às equipes ${linkedTeamNames.join(', ') || 'vinculadas'}.`;
 
   return (
     <div className="page-shell space-y-6">
@@ -171,7 +201,7 @@ export function TeamWorkspace() {
           subtitle={
             isGlobalWorkspace
               ? 'Refine o quadro principal da operação sem perder sincronização com lista, Gantt e governança.'
-              : 'Use o mesmo padrão estrutural da governança para recortar a carteira operacional da equipe.'
+              : 'Use o mesmo padrão estrutural da governança para recortar a carteira operacional do workspace.'
           }
           actionsSlot={
             hasActiveFilters ? (
@@ -179,7 +209,7 @@ export function TeamWorkspace() {
                 onClick={() =>
                   setFilters({
                     ...DEFAULT_PROJECT_FILTERS,
-                    team: team ? [team] : accessibleTeams,
+                    team: scopedTeamNames,
                   })
                 }
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
@@ -195,25 +225,23 @@ export function TeamWorkspace() {
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as WorkspaceTab)} className="space-y-6">
         <KanbanToolbar
-          title={isGlobalWorkspace ? 'Operação principal' : 'Quadro da equipe'}
+          title={isGlobalWorkspace ? 'Operação principal' : `Quadro de ${selectedWorkspace?.name}`}
           description={
             isGlobalWorkspace
-              ? 'Kanban principal da operação, com todos os projetos em execução e foco no trabalho do time.'
-              : 'Mesmo layout-base do quadro principal, agora dentro do recorte operacional da equipe.'
+              ? 'Kanban principal da operação, com todos os workspaces acessíveis e foco no trabalho do time.'
+              : 'Mesmo layout-base do quadro principal, agora dentro do recorte operacional deste workspace.'
           }
           controls={
-            <>
-              <TabsList className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-1">
-                <TabsTrigger value="kanban" className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium">
-                  <LayoutGrid className="h-4 w-4" />
-                  Kanban principal
-                </TabsTrigger>
-                <TabsTrigger value="list" className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium">
-                  <LayoutList className="h-4 w-4" />
-                  Lista
-                </TabsTrigger>
-              </TabsList>
-            </>
+            <TabsList className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+              <TabsTrigger value="kanban" className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium">
+                <LayoutGrid className="h-4 w-4" />
+                Kanban principal
+              </TabsTrigger>
+              <TabsTrigger value="list" className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium">
+                <LayoutList className="h-4 w-4" />
+                Lista
+              </TabsTrigger>
+            </TabsList>
           }
         />
 
@@ -222,8 +250,7 @@ export function TeamWorkspace() {
             <GovernanceKanbanBoard
               projects={visibleProjects}
               boardMode="workspace"
-              workspaceId={isGlobalWorkspace ? undefined : team}
-              workspaceIds={isGlobalWorkspace ? filters.team : undefined}
+              workspaceId={selectedWorkspace?.id}
               onProjectOpen={handleEdit}
               allTasks={allTasks}
               canManagePhases={canManagePhases}
@@ -279,13 +306,12 @@ function MetricTile({
 
 function WorkspaceEmptyState({ hasActiveFilters }: { hasActiveFilters: boolean }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <Users className="mx-auto mb-4 h-16 w-16 text-gray-300" />
-      <h3 className="mb-2 text-lg font-semibold text-gray-900">Nenhum projeto encontrado</h3>
-      <p className="text-gray-500">
+    <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 px-8 py-14 text-center shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-900">Nenhum projeto encontrado</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-500">
         {hasActiveFilters
-          ? 'Tente ajustar os filtros para ver mais projetos.'
-          : 'Ainda não existem projetos disponíveis neste recorte.'}
+          ? 'Ajuste os filtros para ampliar o recorte do workspace.'
+          : 'Este workspace ainda não possui projetos ativos neste momento.'}
       </p>
     </div>
   );

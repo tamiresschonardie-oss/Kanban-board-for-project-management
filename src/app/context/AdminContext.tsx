@@ -26,6 +26,8 @@ import {
   User,
   UserFavoriteEntity,
   UserFavoriteTag,
+  WeeklyDemandAssignment,
+  WorkspaceEntity,
 } from '../types';
 import {
   isDuplicateNotification,
@@ -45,6 +47,7 @@ interface AdminContextType {
   authReady: boolean;
   users: User[];
   teams: Team[];
+  workspaces: WorkspaceEntity[];
   clients: Client[];
   stakeholders: Stakeholder[];
   products: Product[];
@@ -65,6 +68,7 @@ interface AdminContextType {
   operationalPriorityEntries: OperationalPriorityEntry[];
   priorityCycles: PriorityCycle[];
   sprints: Sprint[];
+  weeklyDemandAssignments: WeeklyDemandAssignment[];
   emailOutbox: AuthEmailMessage[];
   costSettings: CostSettings;
   setCurrentUserId: (id: string) => void;
@@ -90,6 +94,11 @@ interface AdminContextType {
   addTeam: (team: Team) => void;
   updateTeam: (id: string, updates: Partial<Team>) => void;
   deleteTeam: (id: string) => void;
+  addWorkspace: (workspace: Omit<WorkspaceEntity, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updateWorkspace: (id: string, updates: Partial<WorkspaceEntity>) => void;
+  deleteWorkspace: (id: string) => void;
+  linkTeamToWorkspace: (teamId: string, workspaceId: string) => void;
+  unlinkTeamFromWorkspace: (teamId: string, workspaceId: string) => void;
   addClient: (client: Client) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
   deleteClient: (id: string) => void;
@@ -159,6 +168,11 @@ interface AdminContextType {
   addSprint: (sprint: Omit<Sprint, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateSprint: (id: string, updates: Partial<Sprint>) => void;
   deleteSprint: (id: string) => void;
+  addWeeklyDemandAssignment: (
+    assignment: Omit<WeeklyDemandAssignment, 'id' | 'createdAt' | 'updatedAt'>
+  ) => string;
+  updateWeeklyDemandAssignment: (id: string, updates: Partial<WeeklyDemandAssignment>) => void;
+  deleteWeeklyDemandAssignment: (id: string) => void;
   updateCostSettings: (updates: Partial<CostSettings>) => void;
 }
 
@@ -166,6 +180,7 @@ interface AdminStorageData {
   currentUserId: string;
   users: User[];
   teams: Team[];
+  workspaces: WorkspaceEntity[];
   clients: Client[];
   stakeholders: Stakeholder[];
   products: Product[];
@@ -186,6 +201,7 @@ interface AdminStorageData {
   operationalPriorityEntries: OperationalPriorityEntry[];
   priorityCycles: PriorityCycle[];
   sprints: Sprint[];
+  weeklyDemandAssignments: WeeklyDemandAssignment[];
   emailOutbox: AuthEmailMessage[];
   costSettings: CostSettings;
 }
@@ -199,7 +215,15 @@ const STORAGE_KEY = 'crisdu_admin_data';
 const SESSION_STORAGE_KEY = 'crisdu_auth_session';
 const STORAGE_VERSION = 4;
 
-const AdminContext = createContext<AdminContextType | undefined>(undefined);
+const adminContextRegistry = globalThis as typeof globalThis & {
+  __crisduAdminContext?: React.Context<AdminContextType | undefined>;
+};
+
+const AdminContext =
+  adminContextRegistry.__crisduAdminContext ||
+  createContext<AdminContextType | undefined>(undefined);
+
+adminContextRegistry.__crisduAdminContext = AdminContext;
 
 const matchesPrioritySegment = (
   entry: OperationalPriorityEntry,
@@ -271,6 +295,8 @@ const initialTeams: Team[] = [
     description: 'Equipe de desenvolvimento de software',
     members: ['1', '3'],
     color: '#3B82F6',
+    usesProjectWorkspace: true,
+    workspaceIds: ['Fábrica'],
     createdAt: new Date().toISOString(),
   },
   {
@@ -279,6 +305,8 @@ const initialTeams: Team[] = [
     description: 'Equipe de análise e inovação',
     members: ['2'],
     color: '#8B5CF6',
+    usesProjectWorkspace: true,
+    workspaceIds: ['AIO'],
     createdAt: new Date().toISOString(),
   },
   {
@@ -287,7 +315,39 @@ const initialTeams: Team[] = [
     description: 'Equipe de infraestrutura',
     members: [],
     color: '#10B981',
+    usesProjectWorkspace: true,
+    workspaceIds: ['Infra'],
     createdAt: new Date().toISOString(),
+  },
+];
+
+const initialWorkspaces: WorkspaceEntity[] = [
+  {
+    id: 'Fábrica',
+    name: 'Fábrica',
+    description: 'Workspace principal da equipe Fábrica.',
+    status: 'active',
+    teamIds: ['1'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'AIO',
+    name: 'AIO',
+    description: 'Workspace principal da equipe AIO.',
+    status: 'active',
+    teamIds: ['2'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'Infra',
+    name: 'Infra',
+    description: 'Workspace principal da equipe Infra.',
+    status: 'active',
+    teamIds: ['3'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];
 
@@ -404,6 +464,21 @@ const initialCostSettings: CostSettings = {
   updatedAt: new Date().toISOString(),
 };
 
+const initialWeeklyDemandAssignments: WeeklyDemandAssignment[] = [
+  {
+    id: 'weekly-demand-assignment-support-factory',
+    demandType: 'suporte',
+    startDate: '2026-04-06',
+    endDate: '2026-04-12',
+    responsibleUserId: '3',
+    teamId: '1',
+    notes: 'Escala inicial de suporte para a equipe Fábrica.',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 const initialTags: Tag[] = [
   {
     id: 'tag-operacional',
@@ -476,6 +551,18 @@ const initialDemandTypes: DemandTypeEntity[] = [
     id: '5',
     name: 'POC e Experimentação',
     value: 'experimentacao',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: '6',
+    name: 'Correção de Bug',
+    value: 'bug',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: '7',
+    name: 'Tarefa Operacional',
+    value: 'tarefa',
     createdAt: new Date().toISOString(),
   },
 ];
@@ -737,6 +824,7 @@ const initialAdminData: AdminStorageData = {
   currentUserId: initialUsers[0].id,
   users: initialUsers,
   teams: initialTeams,
+  workspaces: initialWorkspaces,
   clients: initialClients,
   stakeholders: initialStakeholders,
   products: initialProducts,
@@ -757,6 +845,7 @@ const initialAdminData: AdminStorageData = {
   operationalPriorityEntries: [],
   priorityCycles: [],
   sprints: initialSprints,
+  weeklyDemandAssignments: initialWeeklyDemandAssignments,
   emailOutbox: [],
   costSettings: initialCostSettings,
 };
@@ -781,6 +870,27 @@ const syncTeamMembership = (teams: Team[], users: User[]) =>
       .map((user) => user.id),
   }));
 
+const normalizeWorkspaces = (workspaces: WorkspaceEntity[], teams: Team[]) =>
+  workspaces
+    .map((workspace) => ({
+      ...workspace,
+      status: workspace.status || 'active',
+      teamIds: Array.from(new Set((workspace.teamIds || []).filter((teamId) => teams.some((team) => team.id === teamId)))),
+    }))
+    .filter((workspace) => !workspace.deletedAt);
+
+const syncTeamWorkspaceLinks = (teams: Team[], workspaces: WorkspaceEntity[]) =>
+  teams.map((team) => {
+    const linkedWorkspaceIds = workspaces
+      .filter((workspace) => workspace.teamIds.includes(team.id) && !workspace.deletedAt)
+      .map((workspace) => workspace.id);
+    return {
+      ...team,
+      usesProjectWorkspace: team.usesProjectWorkspace ?? linkedWorkspaceIds.length > 0,
+      workspaceIds: linkedWorkspaceIds,
+    };
+  });
+
 const getInitialAdminData = (): AdminStorageData => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -802,6 +912,7 @@ const getInitialAdminData = (): AdminStorageData => {
           taskTypes: nextData.taskTypes || initialTaskTypes,
           emailTemplates: nextData.emailTemplates || initialEmailTemplates,
           users: normalizeUsers(nextData.users || initialUsers),
+          workspaces: normalizeWorkspaces(nextData.workspaces || initialWorkspaces, nextData.teams || initialTeams),
           automationRules: mergeAutomationRules(nextData.automationRules),
           priorityCycles: (nextData.priorityCycles || []).map(normalizePriorityCycle),
           notifications: sortNotificationsByDate(
@@ -824,6 +935,7 @@ const getInitialAdminData = (): AdminStorageData => {
         taskTypes: nextData.taskTypes || initialTaskTypes,
         emailTemplates: nextData.emailTemplates || initialEmailTemplates,
         users: normalizeUsers(nextData.users || initialUsers),
+        workspaces: normalizeWorkspaces(nextData.workspaces || initialWorkspaces, nextData.teams || initialTeams),
         automationRules: mergeAutomationRules(nextData.automationRules),
         priorityCycles: (nextData.priorityCycles || []).map(normalizePriorityCycle),
         notifications: sortNotificationsByDate(
@@ -841,6 +953,7 @@ const getInitialAdminData = (): AdminStorageData => {
     taskTypes: initialAdminData.taskTypes,
     emailTemplates: initialAdminData.emailTemplates,
     users: normalizeUsers(initialAdminData.users),
+    workspaces: normalizeWorkspaces(initialAdminData.workspaces, initialAdminData.teams),
     automationRules: mergeAutomationRules(initialAutomationRules),
     priorityCycles: initialAdminData.priorityCycles.map(normalizePriorityCycle),
     notifications: sortNotificationsByDate(
@@ -871,7 +984,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const initialSession = getInitialAuthSession();
   const [authSession, setAuthSession] = useState<AuthSession | null>(initialSession);
   const [users, setUsers] = useState<User[]>(initial.users);
-  const [teams, setTeams] = useState<Team[]>(initial.teams);
+  const [workspaces, setWorkspaces] = useState<WorkspaceEntity[]>(initial.workspaces || []);
+  const [teams, setTeams] = useState<Team[]>(syncTeamWorkspaceLinks(initial.teams, initial.workspaces || []));
   const [clients, setClients] = useState<Client[]>(initial.clients);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>(initial.stakeholders);
   const [products, setProducts] = useState<Product[]>(initial.products);
@@ -908,6 +1022,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     initial.priorityCycles || []
   );
   const [sprints, setSprints] = useState<Sprint[]>(initial.sprints || []);
+  const [weeklyDemandAssignments, setWeeklyDemandAssignments] = useState<WeeklyDemandAssignment[]>(
+    initial.weeklyDemandAssignments || []
+  );
   const [emailOutbox, setEmailOutbox] = useState<AuthEmailMessage[]>(initial.emailOutbox || []);
   const [costSettings, setCostSettings] = useState<CostSettings>(
     initial.costSettings || initialCostSettings
@@ -933,6 +1050,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         currentUserId,
         users,
         teams,
+        workspaces,
         clients,
         stakeholders,
         products,
@@ -953,6 +1071,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         operationalPriorityEntries,
         priorityCycles,
         sprints,
+        weeklyDemandAssignments,
         emailOutbox,
         costSettings,
       },
@@ -961,6 +1080,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [
     users,
     teams,
+    workspaces,
     clients,
     stakeholders,
     products,
@@ -981,6 +1101,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     operationalPriorityEntries,
     priorityCycles,
     sprints,
+    weeklyDemandAssignments,
     emailOutbox,
     costSettings,
     currentUserId,
@@ -1164,6 +1285,56 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setAuthSession(null);
   };
 
+  const linkTeamToWorkspace: AdminContextType['linkTeamToWorkspace'] = (teamId, workspaceId) => {
+    setWorkspaces((prev) =>
+      prev.map((workspace) =>
+        workspace.id === workspaceId
+          ? {
+              ...workspace,
+              teamIds: Array.from(new Set([...(workspace.teamIds || []), teamId])),
+              updatedAt: new Date().toISOString(),
+            }
+          : workspace
+      )
+    );
+    setTeams((prev) =>
+      prev.map((team) =>
+        team.id === teamId
+          ? {
+              ...team,
+              usesProjectWorkspace: true,
+              workspaceIds: Array.from(new Set([...(team.workspaceIds || []), workspaceId])),
+            }
+          : team
+      )
+    );
+  };
+
+  const unlinkTeamFromWorkspace: AdminContextType['unlinkTeamFromWorkspace'] = (teamId, workspaceId) => {
+    setWorkspaces((prev) =>
+      prev.map((workspace) =>
+        workspace.id === workspaceId
+          ? {
+              ...workspace,
+              teamIds: (workspace.teamIds || []).filter((id) => id !== teamId),
+              updatedAt: new Date().toISOString(),
+            }
+          : workspace
+      )
+    );
+    setTeams((prev) =>
+      prev.map((team) => {
+        if (team.id !== teamId) return team;
+        const nextWorkspaceIds = (team.workspaceIds || []).filter((id) => id !== workspaceId);
+        return {
+          ...team,
+          workspaceIds: nextWorkspaceIds,
+          usesProjectWorkspace: nextWorkspaceIds.length > 0,
+        };
+      })
+    );
+  };
+
   const requestPasswordReset: AdminContextType['requestPasswordReset'] = async (
     email,
     purpose = 'reset'
@@ -1249,11 +1420,127 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   };
 
-  const addTeam = (team: Team) => setTeams([...teams, team]);
+  const addTeam = (team: Team) =>
+    setTeams((prev) => [
+      ...prev,
+      {
+        ...team,
+        usesProjectWorkspace: team.usesProjectWorkspace ?? false,
+        workspaceIds: team.workspaceIds || [],
+      },
+    ]);
   const updateTeam = (id: string, updates: Partial<Team>) => {
-    setTeams(teams.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+    setTeams((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              ...updates,
+              workspaceIds: typeof updates.workspaceIds !== 'undefined' ? updates.workspaceIds : t.workspaceIds,
+              usesProjectWorkspace:
+                typeof updates.usesProjectWorkspace !== 'undefined'
+                  ? updates.usesProjectWorkspace
+                  : t.usesProjectWorkspace,
+            }
+          : t
+      )
+    );
   };
-  const deleteTeam = (id: string) => setTeams(teams.filter((t) => t.id !== id));
+  const deleteTeam = (id: string) => {
+    setTeams((prev) => prev.filter((t) => t.id !== id));
+    setWorkspaces((prev) =>
+      prev.map((workspace) => ({
+        ...workspace,
+        teamIds: (workspace.teamIds || []).filter((teamId) => teamId !== id),
+        updatedAt: new Date().toISOString(),
+      }))
+    );
+  };
+
+  const addWorkspace: AdminContextType['addWorkspace'] = (workspace) => {
+    const timestamp = new Date().toISOString();
+    const id =
+      workspace.name.trim() ||
+      `workspace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const nextId = id;
+    setWorkspaces((prev) => [
+      ...prev,
+      {
+        ...workspace,
+        id: nextId,
+        teamIds: Array.from(new Set(workspace.teamIds || [])),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ]);
+    if ((workspace.teamIds || []).length > 0) {
+      setTeams((prev) =>
+        prev.map((team) =>
+          workspace.teamIds.includes(team.id)
+            ? {
+                ...team,
+                usesProjectWorkspace: true,
+                workspaceIds: Array.from(new Set([...(team.workspaceIds || []), nextId])),
+              }
+            : team
+        )
+      );
+    }
+    return nextId;
+  };
+
+  const updateWorkspace: AdminContextType['updateWorkspace'] = (id, updates) => {
+    setWorkspaces((prev) =>
+      prev.map((workspace) =>
+        workspace.id === id
+          ? {
+              ...workspace,
+              ...updates,
+              teamIds: Array.from(new Set(updates.teamIds || workspace.teamIds || [])),
+              updatedAt: new Date().toISOString(),
+            }
+          : workspace
+      )
+    );
+    if (typeof updates.teamIds !== 'undefined') {
+      setTeams((prev) =>
+        prev.map((team) => {
+          const isLinked = updates.teamIds?.includes(team.id) || false;
+          const currentIds = new Set(team.workspaceIds || []);
+          if (isLinked) currentIds.add(id);
+          else currentIds.delete(id);
+          const nextWorkspaceIds = Array.from(currentIds);
+          return {
+            ...team,
+            workspaceIds: nextWorkspaceIds,
+            usesProjectWorkspace: nextWorkspaceIds.length > 0 || (updates.teamIds?.includes(team.id) ?? false),
+          };
+        })
+      );
+    }
+  };
+
+  const deleteWorkspace: AdminContextType['deleteWorkspace'] = (id) => {
+    setWorkspaces((prev) =>
+      prev.map((workspace) =>
+        workspace.id === id
+          ? {
+              ...workspace,
+              status: 'inactive',
+              deletedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : workspace
+      )
+    );
+    setTeams((prev) =>
+      prev.map((team) => ({
+        ...team,
+        workspaceIds: (team.workspaceIds || []).filter((workspaceId) => workspaceId !== id),
+        usesProjectWorkspace: (team.workspaceIds || []).some((workspaceId) => workspaceId !== id),
+      }))
+    );
+  };
 
   const addClient = (client: Client) => setClients([...clients, client]);
   const updateClient = (id: string, updates: Partial<Client>) => {
@@ -1769,6 +2056,39 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setSprints((prev) => prev.filter((sprint) => sprint.id !== id));
   };
 
+  const addWeeklyDemandAssignment: AdminContextType['addWeeklyDemandAssignment'] = (assignment) => {
+    const timestamp = new Date().toISOString();
+    const id = `weekly-demand-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setWeeklyDemandAssignments((prev) => [
+      {
+        ...assignment,
+        id,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      ...prev,
+    ]);
+    return id;
+  };
+
+  const updateWeeklyDemandAssignment: AdminContextType['updateWeeklyDemandAssignment'] = (id, updates) => {
+    setWeeklyDemandAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.id === id
+          ? {
+              ...assignment,
+              ...updates,
+              updatedAt: new Date().toISOString(),
+            }
+          : assignment
+      )
+    );
+  };
+
+  const deleteWeeklyDemandAssignment: AdminContextType['deleteWeeklyDemandAssignment'] = (id) => {
+    setWeeklyDemandAssignments((prev) => prev.filter((assignment) => assignment.id !== id));
+  };
+
   const updateCostSettings: AdminContextType['updateCostSettings'] = (updates) => {
     setCostSettings((prev) => ({
       ...prev,
@@ -1787,6 +2107,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         authReady,
         users,
         teams,
+        workspaces,
         clients,
         stakeholders,
         products,
@@ -1807,6 +2128,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         operationalPriorityEntries,
         priorityCycles,
         sprints,
+        weeklyDemandAssignments,
         emailOutbox,
         costSettings,
         setCurrentUserId,
@@ -1821,6 +2143,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         addTeam,
         updateTeam,
         deleteTeam,
+        addWorkspace,
+        updateWorkspace,
+        deleteWorkspace,
+        linkTeamToWorkspace,
+        unlinkTeamFromWorkspace,
         addClient,
         updateClient,
         deleteClient,
@@ -1879,6 +2206,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         addSprint,
         updateSprint,
         deleteSprint,
+        addWeeklyDemandAssignment,
+        updateWeeklyDemandAssignment,
+        deleteWeeklyDemandAssignment,
         updateCostSettings,
       }}
     >

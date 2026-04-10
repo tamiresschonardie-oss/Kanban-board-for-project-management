@@ -44,7 +44,7 @@ export function Home() {
   const navigate = useNavigate();
   const { openProjectDetail } = useProjectDetailNavigation();
   const { projects } = useProjects();
-  const { currentUser, teams, notifications, skills, getFavoriteEntityIds } = useAdmin();
+  const { currentUser, teams, workspaces, notifications, skills, getFavoriteEntityIds } = useAdmin();
   const { allTasks } = useTasks();
   const { getEventsForUser } = useSchedule();
 
@@ -214,14 +214,20 @@ export function Home() {
   const canSeeGovernance = canAccessGovernance(currentUser);
   const canSeeOperationalPriority =
     canManageOperationalPriority(currentUser) || canManageWeeklyFocus(currentUser);
-  const visibleTeams = useMemo(() => {
+  const visibleWorkspaces = useMemo(() => {
+    const activeWorkspaces = workspaces
+      .filter((workspace) => workspace.status === 'active' && !workspace.deletedAt)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
     if (!currentUser) return [];
     if (currentUser.role === 'user') {
       const userTeams = new Set(getUserTeams(currentUser));
-      return teams.filter((team) => userTeams.has(team.name));
+      const teamIds = teams.filter((team) => userTeams.has(team.name)).map((team) => team.id);
+      return activeWorkspaces.filter((workspace) => workspace.teamIds.some((teamId) => teamIds.includes(teamId)));
     }
-    return teams;
-  }, [teams, currentUser]);
+    return activeWorkspaces;
+  }, [workspaces, teams, currentUser]);
 
   const favoriteProjectIds = useMemo(() => getFavoriteEntityIds('project'), [getFavoriteEntityIds]);
   const favoriteTaskIds = useMemo(() => getFavoriteEntityIds('task'), [getFavoriteEntityIds]);
@@ -545,25 +551,32 @@ export function Home() {
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {visibleTeams.map((team) => {
-                  const workspaceProjects = getWorkspaceProjects(projects, team.name);
+                {visibleWorkspaces.map((workspace) => {
+                  const linkedTeams = teams.filter((team) => workspace.teamIds.includes(team.id));
+                  const workspaceProjects = getWorkspaceProjects(
+                    projects,
+                    linkedTeams.map((team) => team.name)
+                  );
                   const overdueCount = workspaceProjects.filter((project) => isProjectOverdue(project)).length;
                   return (
                     <button
-                      key={team.id}
-                      onClick={() => navigate(`/workspace/${team.name}`)}
+                      key={workspace.id}
+                      onClick={() => navigate(`/workspace/${workspace.id}`)}
                       className="interactive-surface rounded-[24px] border border-slate-200/80 bg-white/75 p-4 text-left"
                     >
                       <div className="flex items-center gap-3">
                         <div
                           className="flex h-10 w-10 items-center justify-center rounded-xl"
-                          style={{ backgroundColor: team.color }}
+                          style={{ background: `linear-gradient(135deg, ${linkedTeams[0]?.color || '#2563EB'}, #0F172A)` }}
                         >
                           <Users className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{team.name}</p>
-                          <p className="text-sm text-slate-500">{workspaceProjects.length} projetos</p>
+                          <p className="font-medium text-gray-900">{workspace.name}</p>
+                          <p className="text-sm text-slate-500">
+                            {workspaceProjects.length} projetos
+                            {linkedTeams.length > 0 ? ` • ${linkedTeams.map((team) => team.name).join(', ')}` : ''}
+                          </p>
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-between text-sm text-slate-600">

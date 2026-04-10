@@ -5,6 +5,7 @@ import {
   AssigneeTransferHistoryEntry,
   ChecklistItem,
   Comment,
+  DemandType,
   OperationalPrioritySyncState,
   Project,
   Subtask,
@@ -63,6 +64,8 @@ import {
 import { applyPriorityCycleFocusToTaskEntities } from '../utils/priorityCycles';
 import { formatDurationSummary, formatDurationHours, normalizeTimeLogs } from '../utils/timeTracking';
 import { useIntegration } from './IntegrationContext';
+import { findWeeklyAssignmentForDemand } from '../utils/weeklyDemandRouting';
+import { normalizeDemandTriage } from '../utils/demandTriage';
 
 interface TaskContextType {
   allTasks: EnrichedTask[];
@@ -206,6 +209,29 @@ const getDefaultPersonalStage = (status?: string, legacyColumn?: string) => {
 const normalizeSubtasks = (subtasks: Subtask[] = []): Subtask[] =>
   subtasks.map((subtask) => ({
     ...subtask,
+    analystOwnerId: subtask.analystOwnerId,
+    analystOwnerName: subtask.analystOwnerName || subtask.requestedBy,
+    technicalOwnerId: subtask.technicalOwnerId || subtask.assigneeId,
+    technicalOwnerName: subtask.technicalOwnerName || subtask.assignee,
+    technicalOwnerSource:
+      subtask.technicalOwnerSource || (subtask.technicalOwnerId || subtask.assigneeId ? 'legacy' : undefined),
+    assignee: subtask.technicalOwnerName || subtask.assignee,
+    assigneeId: subtask.technicalOwnerId || subtask.assigneeId,
+    suggestedDemandType:
+      normalizeDemandTriage({
+        ...subtask,
+        subtasks: subtask.subtasks || [],
+        status: normalizeTaskStatus(subtask.status, subtask.completed),
+        completed: isTaskDoneStatus(subtask.status, subtask.completed),
+      } as WBSTask).suggestedDemandType,
+    expectedBusinessImpact: subtask.expectedBusinessImpact || subtask.expectedImpactLevel,
+    expectedImpactLevel: subtask.expectedImpactLevel || subtask.expectedBusinessImpact,
+    triageStatus:
+      subtask.triageStatus ||
+      (subtask.triageComplexity || subtask.expectedBusinessImpact || subtask.scopeLevel || subtask.valueIntent
+        ? 'completed'
+        : 'pending'),
+    originTicket: subtask.originTicket ?? false,
     status: normalizeTaskStatus(subtask.status, subtask.completed),
     completed: isTaskDoneStatus(subtask.status, subtask.completed),
     taskType: subtask.taskType || 'project',
@@ -238,7 +264,18 @@ const normalizeSubtasks = (subtasks: Subtask[] = []): Subtask[] =>
   }));
 
 const normalizeTask = (task: WBSTask): WBSTask => ({
-  ...task,
+  ...normalizeDemandTriage(task),
+  analystOwnerId: task.analystOwnerId,
+  analystOwnerName: task.analystOwnerName || task.requestedBy,
+  technicalOwnerId: task.technicalOwnerId || task.assigneeId,
+  technicalOwnerName: task.technicalOwnerName || task.assignee,
+  technicalOwnerSource:
+    task.technicalOwnerSource || (task.technicalOwnerId || task.assigneeId ? 'legacy' : undefined),
+  assignee: task.technicalOwnerName || task.assignee,
+  assigneeId: task.technicalOwnerId || task.assigneeId,
+  expectedBusinessImpact: task.expectedBusinessImpact || task.expectedImpactLevel,
+  expectedImpactLevel: task.expectedImpactLevel || task.expectedBusinessImpact,
+  originTicket: task.originTicket ?? false,
   status: normalizeTaskStatus(task.status, (task as WBSTask & { completed?: boolean }).completed),
   taskType: task.taskType || (task.projectId ? 'project' : 'personal'),
   sprintStatus:
@@ -268,6 +305,9 @@ const normalizeTask = (task: WBSTask): WBSTask => ({
   deletedAt: task.deletedAt,
   deletedBy: task.deletedBy,
 });
+
+const resolveTaskDemandType = (task: Pick<WBSTask, 'demandType'>, project?: Pick<Project, 'demandType'>): DemandType | undefined =>
+  task.demandType || project?.demandType;
 
 const cloneChecklistForDuplication = (items: ChecklistItem[] = []) =>
   items.map((item) => ({
@@ -824,15 +864,59 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const {
     currentUser,
     users,
+    teams,
     automationRules,
     emailTemplates,
     addNotification,
     recordAutomationExecutions,
     sendEmailMessage,
     priorityCycles,
+    weeklyDemandAssignments,
   } = useAdmin();
   const { projects, updateProject } = useProjects();
   const { publishDomainEvent } = useIntegration();
+  const teamIdByName = React.useMemo(
+    () => new Map(teams.map((team) => [team.name, team.id])),
+    [teams]
+  );
+
+  const applyTechnicalOwnerSuggestion = React.useCallback(
+    (task: WBSTask, project?: Project) => {
+      const normalizedTask = normalizeTask(task);
+      if (normalizedTask.technicalOwnerId || normalizedTask.assigneeId) {
+        return normalizedTask;
+      }
+
+      const demandType = resolveTaskDemandType(normalizedTask, project);
+      const teamId = project?.group ? teamIdByName.get(project.group) : normalizedTask.workspaceId ? teamIdByName.get(normalizedTask.workspaceId) : undefined;
+      const assignment = findWeeklyAssignmentForDemand(weeklyDemandAssignments, {
+        demandType,
+        teamId,
+        referenceDate: new Date(),
+      });
+
+      if (!assignment) {
+        return normalizedTask;
+      }
+
+      const responsibleUser = users.find((user) => user.id === assignment.responsibleUserId);
+      if (!responsibleUser) {
+        return normalizedTask;
+      }
+
+      return normalizeTask({
+        ...normalizedTask,
+        technicalOwnerId: responsibleUser.id,
+        technicalOwnerName: responsibleUser.name,
+        technicalOwnerSource: 'weekly_assignment',
+        technicalOwnerSuggestedByAssignmentId: assignment.id,
+        technicalOwnerSuggestedAt: new Date().toISOString(),
+        assigneeId: responsibleUser.id,
+        assignee: responsibleUser.name,
+      });
+    },
+    [teamIdByName, users, weeklyDemandAssignments]
+  );
   const [independentTasks, setIndependentTasks] = useState<WBSTask[]>(() => {
     const saved = readStorage<WBSTask[]>(STORAGE_KEYS.independentTasks);
     if (saved?.length) {
@@ -1094,20 +1178,42 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   };
 
   const addIndependentTask = (task: WBSTask) => {
-    const normalizedTask = normalizeTask(task);
+    const relatedProject = task.projectId
+      ? projects.find((project) => project.id === task.projectId)
+      : undefined;
+    const normalizedTask = applyTechnicalOwnerSuggestion(
+      {
+        ...normalizeTask(task),
+        analystOwnerName: task.analystOwnerName || task.requestedBy,
+        analystOwnerId: task.analystOwnerId,
+        typeDefinedBy: task.demandType ? currentUser?.name || task.typeDefinedBy : task.typeDefinedBy,
+        typeDefinedAt: task.demandType ? new Date().toISOString() : task.typeDefinedAt,
+      },
+      relatedProject
+    );
     const createdActivity = createActivity(
-      normalizedTask.assignee || normalizedTask.requestedBy || 'Sistema',
+      normalizedTask.technicalOwnerName || normalizedTask.analystOwnerName || normalizedTask.requestedBy || 'Sistema',
       'criou a tarefa',
       normalizedTask.title,
       'task',
       normalizedTask.id
     );
+    const routingActivity =
+      normalizedTask.technicalOwnerSource === 'weekly_assignment' && normalizedTask.technicalOwnerSuggestedByAssignmentId
+        ? createActivity(
+            currentUser?.name || normalizedTask.analystOwnerName || 'Sistema',
+            'aplicou sugestão de escala semanal',
+            `${normalizedTask.title}: ${normalizedTask.technicalOwnerName || 'Sem responsável técnico'} sugerido pela escala`,
+            'task',
+            normalizedTask.id
+          )
+        : undefined;
 
     setIndependentTasks((prev) => [
       ...prev,
       finalizeRootTask({
         ...normalizedTask,
-        activities: [...(normalizedTask.activities || []), createdActivity],
+        activities: [...(normalizedTask.activities || []), createdActivity, ...(routingActivity ? [routingActivity] : [])],
       }),
     ]);
 
@@ -1347,35 +1453,120 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const nextTask = normalizeTask({
-      ...task,
-      ...updates,
-      status: nextStatus ?? task.status,
-      completed: nextStatus ? nextStatus === 'done' : updates.completed ?? task.completed,
-    } as WBSTask);
+    const nextTechnicalOwnerId =
+      typeof updates.technicalOwnerId !== 'undefined'
+        ? updates.technicalOwnerId
+        : typeof updates.assigneeId !== 'undefined'
+          ? updates.assigneeId
+          : task.technicalOwnerId || task.assigneeId;
+    const nextTechnicalOwnerName =
+      typeof updates.technicalOwnerName !== 'undefined'
+        ? updates.technicalOwnerName
+        : typeof updates.assignee !== 'undefined'
+          ? updates.assignee
+          : task.technicalOwnerName || task.assignee;
+    const nextDemandType =
+      typeof updates.demandType !== 'undefined' ? updates.demandType : task.demandType;
+    const nextTask = applyTechnicalOwnerSuggestion(
+      {
+        ...task,
+        ...updates,
+        demandType: nextDemandType,
+        typeDefinedBy:
+          typeof updates.demandType !== 'undefined'
+            ? currentUser?.name || task.typeDefinedBy
+            : task.typeDefinedBy,
+        typeDefinedAt:
+          typeof updates.demandType !== 'undefined'
+            ? new Date().toISOString()
+            : task.typeDefinedAt,
+        triageStatus:
+          updates.triageStatus ||
+          (updates.triageComplexity || updates.expectedBusinessImpact || updates.scopeLevel || updates.valueIntent
+            ? 'completed'
+            : task.triageStatus),
+        technicalOwnerId: nextTechnicalOwnerId,
+        technicalOwnerName: nextTechnicalOwnerName,
+        analystOwnerName:
+          typeof updates.analystOwnerName !== 'undefined'
+            ? updates.analystOwnerName
+            : task.analystOwnerName || task.requestedBy,
+        assigneeId: nextTechnicalOwnerId,
+        assignee: nextTechnicalOwnerName,
+        status: nextStatus ?? task.status,
+        completed: nextStatus ? nextStatus === 'done' : updates.completed ?? task.completed,
+      } as WBSTask,
+      task.projectId ? projects.find((project) => project.id === task.projectId) : undefined
+    );
     const hasStatusChange =
       typeof nextStatus !== 'undefined' && nextStatus !== task.status;
     const hasAssigneeChange =
-      Object.prototype.hasOwnProperty.call(updates, 'assignee') && updates.assignee !== task.assignee;
-    const nextAssigneeId =
-      typeof updates.assigneeId !== 'undefined'
-        ? updates.assigneeId
-        : users.find((user) => user.name === updates.assignee)?.id;
+      (Object.prototype.hasOwnProperty.call(updates, 'assignee') ||
+        Object.prototype.hasOwnProperty.call(updates, 'assigneeId') ||
+        Object.prototype.hasOwnProperty.call(updates, 'technicalOwnerId') ||
+        Object.prototype.hasOwnProperty.call(updates, 'technicalOwnerName')) &&
+      (task.technicalOwnerId || task.assigneeId || '') !== (nextTask.technicalOwnerId || nextTask.assigneeId || '');
+    const hasSprintChange =
+      Object.prototype.hasOwnProperty.call(updates, 'sprintId') && updates.sprintId !== task.sprintId;
+    const hasSprintOrderChange =
+      Object.prototype.hasOwnProperty.call(updates, 'sprintOrder') && updates.sprintOrder !== task.sprintOrder;
+    const hasAnalystChange =
+      (Object.prototype.hasOwnProperty.call(updates, 'analystOwnerId') ||
+        Object.prototype.hasOwnProperty.call(updates, 'analystOwnerName')) &&
+      (task.analystOwnerId || task.analystOwnerName || task.requestedBy || '') !==
+        (nextTask.analystOwnerId || nextTask.analystOwnerName || nextTask.requestedBy || '');
+    const hasDemandTypeChange =
+      (Object.prototype.hasOwnProperty.call(updates, 'demandType') ||
+        Object.prototype.hasOwnProperty.call(updates, 'suggestedDemandType')) &&
+      (task.demandType || '') !== (nextTask.demandType || '');
+    const hasTriageChange =
+      Object.prototype.hasOwnProperty.call(updates, 'triageComplexity') ||
+      Object.prototype.hasOwnProperty.call(updates, 'expectedBusinessImpact') ||
+      Object.prototype.hasOwnProperty.call(updates, 'scopeLevel') ||
+      Object.prototype.hasOwnProperty.call(updates, 'valueIntent') ||
+      Object.prototype.hasOwnProperty.call(updates, 'valueIntentNotes') ||
+      Object.prototype.hasOwnProperty.call(updates, 'originTicketReference') ||
+      Object.prototype.hasOwnProperty.call(updates, 'originTicket');
+    const nextAssigneeId = nextTask.technicalOwnerId || nextTask.assigneeId;
     const assigneeTransferEntry = hasAssigneeChange
-      ? createAssigneeTransferEntry(task.assignee, updates.assignee, currentUser?.name)
+      ? createAssigneeTransferEntry(
+          task.technicalOwnerName || task.assignee,
+          nextTask.technicalOwnerName || nextTask.assignee,
+          currentUser?.name
+        )
       : undefined;
 
     const taskActivity = createActivity(
-      currentUser?.name || updates.assignee || task.assignee || updates.requestedBy || task.requestedBy || 'Sistema',
+      currentUser?.name || nextTask.technicalOwnerName || nextTask.analystOwnerName || task.requestedBy || 'Sistema',
       hasAssigneeChange
-        ? 'transferiu a responsabilidade da tarefa'
+        ? 'alterou o responsável técnico da tarefa'
         : hasStatusChange
           ? 'alterou o status da tarefa'
+          : hasSprintOrderChange
+            ? 'repriorizou a tarefa na sprint'
+          : hasSprintChange
+              ? 'moveu a tarefa entre sprints'
+              : hasAnalystChange
+                ? 'alterou o analista responsável'
+                : hasDemandTypeChange
+                  ? 'converteu o tipo da demanda'
+                  : hasTriageChange
+                    ? 'atualizou a triagem da demanda'
           : 'editou a tarefa',
       hasAssigneeChange
-        ? `${task.title}: ${task.assignee || 'Sem responsável'} -> ${updates.assignee || 'Sem responsável'}`
+        ? `${task.title}: ${task.technicalOwnerName || task.assignee || 'Sem responsável técnico'} -> ${nextTask.technicalOwnerName || nextTask.assignee || 'Sem responsável técnico'}`
         : hasStatusChange
           ? `${task.title}: ${task.status} -> ${nextStatus}`
+          : hasSprintOrderChange
+            ? `${task.title}: prioridade ${typeof task.sprintOrder === 'number' ? task.sprintOrder + 1 : '—'} -> ${typeof nextTask.sprintOrder === 'number' ? nextTask.sprintOrder + 1 : '—'}`
+            : hasSprintChange
+            ? `${task.title}: ${task.sprintId || 'Sem sprint'} -> ${nextTask.sprintId || 'Sem sprint'}`
+              : hasAnalystChange
+                ? `${task.title}: ${task.analystOwnerName || task.requestedBy || 'Sem analista'} -> ${nextTask.analystOwnerName || 'Sem analista'}`
+                : hasDemandTypeChange
+                  ? `${task.title}: ${task.demandType || 'indefinido'} -> ${nextTask.demandType || 'indefinido'}`
+                  : hasTriageChange
+                    ? `${task.title}: triagem revisada e sugestão ${nextTask.suggestedDemandType || 'não gerada'}`
           : `Dados atualizados em ${task.title}`,
       'task',
       taskId
@@ -1401,6 +1592,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
                 )
               : nextTask.followerUserIds,
             assigneeId: nextAssigneeId || nextTask.assigneeId,
+            assignee: nextTask.technicalOwnerName || nextTask.assignee,
+            technicalOwnerId: nextAssigneeId || nextTask.technicalOwnerId,
+            technicalOwnerName: nextTask.technicalOwnerName || nextTask.assignee,
           },
           taskActivity
         ),
@@ -1408,12 +1602,22 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         ? createActivity(
             currentUser?.name || task.assignee || task.requestedBy || 'Sistema',
             hasAssigneeChange
-              ? 'redefiniu o responsável de uma tarefa'
+              ? 'redefiniu o responsável técnico de uma tarefa'
               : hasStatusChange
                 ? 'alterou o status de uma tarefa'
+                : hasSprintOrderChange
+                  ? 'repriorizou uma tarefa na sprint'
+                : hasSprintChange
+                    ? 'moveu uma tarefa entre sprints'
+                    : hasAnalystChange
+                      ? 'alterou o analista responsável'
+                      : hasDemandTypeChange
+                        ? 'converteu o tipo de uma demanda'
+                        : hasTriageChange
+                          ? 'atualizou a triagem de uma demanda'
                 : 'editou uma tarefa',
             hasAssigneeChange
-              ? `${task.title}: ${task.assignee || 'Sem responsável'} -> ${updates.assignee || 'Sem responsável'}`
+              ? `${task.title}: ${task.technicalOwnerName || task.assignee || 'Sem responsável técnico'} -> ${nextTask.technicalOwnerName || nextTask.assignee || 'Sem responsável técnico'}`
               : task.title,
             'task',
             taskId
@@ -1486,10 +1690,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           taskId,
           title: nextTask.title,
           projectId: task.projectId,
-          fromAssigneeId: task.assigneeId,
+          fromAssigneeId: task.technicalOwnerId || task.assigneeId,
           toAssigneeId: nextAssigneeId,
-          fromAssigneeName: task.assignee,
-          toAssigneeName: updates.assignee,
+          fromAssigneeName: task.technicalOwnerName || task.assignee,
+          toAssigneeName: nextTask.technicalOwnerName || nextTask.assignee,
         },
       });
 
@@ -1499,7 +1703,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
             userId: nextAssigneeId,
             type: 'task_assigned',
             title: 'Nova responsabilidade',
-            description: `${currentUser?.name || 'Alguém'} atribuiu "${nextTask.title}" para você.`,
+            description: `${currentUser?.name || 'Alguém'} atribuiu a execução técnica de "${nextTask.title}" para você.`,
             entityType: 'task',
             entityId: taskId,
             linkTo: `/my-tasks?task=${taskId}`,
@@ -1507,13 +1711,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      if (task.assigneeId && task.assigneeId !== nextAssigneeId) {
+      if ((task.technicalOwnerId || task.assigneeId) && (task.technicalOwnerId || task.assigneeId) !== nextAssigneeId) {
         addNotification(
           createNotification({
-            userId: task.assigneeId,
+            userId: (task.technicalOwnerId || task.assigneeId) as string,
             type: 'task_unassigned',
             title: 'Tarefa transferida',
-            description: `${currentUser?.name || 'Alguém'} removeu você da responsabilidade de "${nextTask.title}".`,
+            description: `${currentUser?.name || 'Alguém'} removeu você da execução técnica de "${nextTask.title}".`,
             entityType: 'task',
             entityId: taskId,
             linkTo: `/my-tasks?task=${taskId}`,
@@ -1533,7 +1737,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         project: relatedProject,
         task: nextTask,
         metadata: {
-          fromAssigneeId: task.assigneeId,
+          fromAssigneeId: task.technicalOwnerId || task.assigneeId,
           toAssigneeId: nextAssigneeId,
           taskId,
         },

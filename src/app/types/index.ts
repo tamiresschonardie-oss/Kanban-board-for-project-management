@@ -8,6 +8,32 @@ export type ProjectStatus = GovernancePhaseId;
 export type ProjectExecutionStatus = 'não-iniciado' | 'em-andamento' | 'concluído' | 'em-risco';
 export type ProjectSituation = 'ativo' | 'pausado' | 'cancelado';
 export type ProjectPurpose = 'expansao' | 'suporte' | 'inovacao' | 'seguranca' | 'operacional' | 'estrategico';
+export type ProjectResultMaturityType = 'imediato' | 'curto_prazo' | 'medio_prazo' | 'longo_prazo';
+export type ProjectResultStatus =
+  | 'nao_iniciado'
+  | 'aguardando_avaliacao'
+  | 'em_avaliacao'
+  | 'avaliado'
+  | 'encerrado';
+export type ProjectResultScheduleMode = 'default' | 'custom';
+export type ProjectImpactLevel = 'baixo' | 'medio' | 'alto';
+export type ProjectKpiType =
+  | 'tempo'
+  | 'financeiro'
+  | 'produtividade'
+  | 'qualidade'
+  | 'uso'
+  | 'satisfacao'
+  | 'outro';
+export type ProjectKpiMeasurementSource = 'manual' | 'automatica' | 'integracao';
+export type ProjectResultEvaluationStatus = 'pendente' | 'em_avaliacao' | 'concluida' | 'cancelada';
+export type ProjectBenefitKind = 'expected' | 'realized';
+
+// O projeto possui dois ciclos complementares:
+// 1) execução/governança, que organiza o trabalho do Labs no Kanban principal;
+// 2) resultado/valor, que começa após a entrega e segue fora do Kanban operacional.
+// Essa separação evita manter projetos concluídos presos no fluxo principal apenas porque
+// o benefício de negócio ainda está maturando.
 
 export type MilestoneType = 'business' | 'technical' | 'regulatory' | 'delivery';
 export type MilestoneStatus = 'not-started' | 'in-progress' | 'completed' | 'delayed';
@@ -17,7 +43,21 @@ export type TaskScopeStatus = 'active' | 'not_applicable' | 'out_of_scope' | 'di
 export type UserRole = 'admin' | 'pmo' | 'gestor' | 'user';
 export type UserStatus = 'active' | 'inactive';
 export type PasswordTokenPurpose = 'setup' | 'reset';
-export type DemandType = 'projeto' | 'melhoria' | 'suporte' | 'evolucao' | 'experimentacao';
+export type DemandType = 'projeto' | 'melhoria' | 'suporte' | 'evolucao' | 'experimentacao' | 'bug' | 'tarefa';
+export type TaskOwnerSource = 'manual' | 'weekly_assignment' | 'legacy';
+export type WorkspaceStatus = 'active' | 'inactive';
+export type TriageComplexity = 'baixa' | 'media' | 'alta';
+export type TriageScopeLevel = 'pontual' | 'moderado' | 'amplo';
+export type ValueIntent =
+  | 'reduzir_tempo'
+  | 'reduzir_custo'
+  | 'melhorar_qualidade'
+  | 'melhorar_experiencia'
+  | 'aumentar_controle'
+  | 'evitar_erro'
+  | 'aumentar_produtividade'
+  | 'outro';
+export type TriageStatus = 'pending' | 'completed';
 export type AutomationEventType =
   | 'project.created'
   | 'project.updated'
@@ -272,7 +312,20 @@ export interface Team {
   description?: string;
   members: string[]; // User IDs
   color: string;
+  usesProjectWorkspace?: boolean;
+  workspaceIds?: string[];
   createdAt: string;
+}
+
+export interface WorkspaceEntity {
+  id: string;
+  name: string;
+  description?: string;
+  status: WorkspaceStatus;
+  teamIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface Client {
@@ -459,6 +512,19 @@ export interface Sprint {
   updatedAt: string;
 }
 
+export interface WeeklyDemandAssignment {
+  id: string;
+  demandType: DemandType;
+  startDate: string;
+  endDate: string;
+  responsibleUserId: string;
+  teamId?: string;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Notification {
   id: string;
   userId: string;
@@ -492,6 +558,27 @@ export interface Subtask {
   taskType?: SprintTaskType;
   assignee?: string;
   assigneeId?: string;
+  analystOwnerId?: string;
+  analystOwnerName?: string;
+  technicalOwnerId?: string;
+  technicalOwnerName?: string;
+  technicalOwnerSource?: TaskOwnerSource;
+  technicalOwnerSuggestedByAssignmentId?: string;
+  technicalOwnerSuggestedAt?: string;
+  demandType?: DemandType;
+  suggestedDemandType?: DemandType;
+  triageComplexity?: TriageComplexity;
+  expectedBusinessImpact?: ProjectImpactLevel;
+  scopeLevel?: TriageScopeLevel;
+  valueIntent?: ValueIntent;
+  valueIntentNotes?: string;
+  typeDefinedBy?: string;
+  typeDefinedAt?: string;
+  triageStatus?: TriageStatus;
+  originTicket?: boolean;
+  originTicketReference?: string;
+  sourceSystem?: string;
+  expectedImpactLevel?: ProjectImpactLevel;
   startDate?: string;
   dueDate?: string;
   sprintId?: string;
@@ -541,6 +628,27 @@ export interface WBSTask {
   taskType?: SprintTaskType;
   assignee?: string;
   assigneeId?: string;
+  analystOwnerId?: string;
+  analystOwnerName?: string;
+  technicalOwnerId?: string;
+  technicalOwnerName?: string;
+  technicalOwnerSource?: TaskOwnerSource;
+  technicalOwnerSuggestedByAssignmentId?: string;
+  technicalOwnerSuggestedAt?: string;
+  demandType?: DemandType;
+  suggestedDemandType?: DemandType;
+  triageComplexity?: TriageComplexity;
+  expectedBusinessImpact?: ProjectImpactLevel;
+  scopeLevel?: TriageScopeLevel;
+  valueIntent?: ValueIntent;
+  valueIntentNotes?: string;
+  typeDefinedBy?: string;
+  typeDefinedAt?: string;
+  triageStatus?: TriageStatus;
+  originTicket?: boolean;
+  originTicketReference?: string;
+  sourceSystem?: string;
+  expectedImpactLevel?: ProjectImpactLevel;
   startDate?: string;
   dueDate?: string;
   estimatedHours?: number;
@@ -809,6 +917,51 @@ export interface ProjectExecution {
   ganttDependencies?: GanttDependency[];
   appliedTaskTemplateIds?: string[];
   manualTimelineEntries?: ProjectTimelineEntry[];
+}
+
+export interface ProjectKpi {
+  id: string;
+  projectId: string;
+  name: string;
+  type: ProjectKpiType;
+  description?: string;
+  unit?: string;
+  baselineValue?: number;
+  expectedValue?: number;
+  actualValue?: number;
+  measurementSource: ProjectKpiMeasurementSource;
+  measuredAt?: string;
+  observations?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectResultEvaluation {
+  id: string;
+  projectId: string;
+  label?: string;
+  sequence?: number;
+  scheduledAt: string;
+  completedAt?: string;
+  status: ProjectResultEvaluationStatus;
+  responsibleId?: string;
+  valueScore?: 1 | 2 | 3 | 4 | 5;
+  summary?: string;
+  notes?: string;
+  isAutoScheduled?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectBenefit {
+  id: string;
+  projectId: string;
+  kind: ProjectBenefitKind;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  realizedAt?: string;
+  sourceEvaluationId?: string;
 }
 
 export interface ProjectWorkspaceBoardState {
@@ -1134,6 +1287,18 @@ export interface Project {
   objective?: string;
   justification?: string;
   expectedBenefits?: string[];
+  realizedBenefits?: string[];
+  benefits?: ProjectBenefit[];
+  resultMaturityType?: ProjectResultMaturityType;
+  resultStatus?: ProjectResultStatus;
+  resultScheduleMode?: ProjectResultScheduleMode;
+  resultOwnerId?: string;
+  resultCustomEvaluationOffsetsDays?: number[];
+  impactLevel?: ProjectImpactLevel;
+  nextResultEvaluationAt?: string;
+  valueRealizationSummary?: string;
+  projectKpis?: ProjectKpi[];
+  resultEvaluations?: ProjectResultEvaluation[];
   
   // Informações complementares
   originTicket?: string;

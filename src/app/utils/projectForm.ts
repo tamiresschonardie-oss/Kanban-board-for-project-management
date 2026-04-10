@@ -22,6 +22,7 @@ import {
   normalizeProjectRoleAssignments,
   normalizeProjectRoleKey,
 } from './phaseOwnership';
+import { normalizeProjectValueState } from '../services/projectValueService';
 
 export interface ProjectFormValues {
   situation: ProjectSituation;
@@ -319,7 +320,7 @@ export function buildProjectFromFormValues(params: {
     .filter((tagName): tagName is string => Boolean(tagName));
   const selectedSkill = skillsCatalog.find((skill) => skill.id === form.skillId);
 
-  return {
+  return normalizeProjectValueState({
     id: existingProject?.id || `project-${Date.now()}`,
     name: form.name.trim(),
     group: primaryTeam,
@@ -347,6 +348,20 @@ export function buildProjectFromFormValues(params: {
       .split('\n')
       .map((item) => item.trim())
       .filter(Boolean),
+    realizedBenefits: existingProject?.realizedBenefits || [],
+    benefits: existingProject?.benefits || [],
+    resultMaturityType: existingProject?.resultMaturityType || 'medio_prazo',
+    resultStatus: existingProject?.resultStatus || 'nao_iniciado',
+    resultScheduleMode:
+      existingProject?.resultScheduleMode ||
+      ((existingProject?.resultCustomEvaluationOffsetsDays || []).length > 0 ? 'custom' : 'default'),
+    resultOwnerId: existingProject?.resultOwnerId,
+    resultCustomEvaluationOffsetsDays: existingProject?.resultCustomEvaluationOffsetsDays || [],
+    impactLevel: existingProject?.impactLevel || 'medio',
+    nextResultEvaluationAt: existingProject?.nextResultEvaluationAt,
+    valueRealizationSummary: existingProject?.valueRealizationSummary,
+    projectKpis: existingProject?.projectKpis || [],
+    resultEvaluations: existingProject?.resultEvaluations || [],
     originTicket: form.originTicket || undefined,
     product: form.product || undefined,
     skillId: form.skillId || undefined,
@@ -378,5 +393,5 @@ export function buildProjectFromFormValues(params: {
     comments: existingProject?.comments || [],
     requester: form.requestedBy || undefined,
     isPaused: form.situation === PROJECT_SITUATIONS.PAUSADO,
-  };
+  });
 }

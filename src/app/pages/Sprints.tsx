@@ -249,6 +249,23 @@ export function Sprints() {
     updateTask(taskId, { sprintStatus });
   };
 
+  const reorderSprintTasks = (orderedIds: string[]) => {
+    orderedIds.forEach((taskId, index) => {
+      const currentTask = sprintTasks.find((task) => task.id === taskId);
+      if (!currentTask || currentTask.sprintOrder === index) return;
+      updateTask(taskId, { sprintOrder: index });
+    });
+  };
+
+  const handleSprintTaskDrop = (draggedTaskId: string, targetTaskId: string) => {
+    if (!canManage || !draggedTaskId || draggedTaskId === targetTaskId) return;
+    const orderedIds = sprintTasks.map((task) => task.id).filter((id) => id !== draggedTaskId);
+    const targetIndex = orderedIds.indexOf(targetTaskId);
+    if (targetIndex === -1) return;
+    orderedIds.splice(targetIndex, 0, draggedTaskId);
+    reorderSprintTasks(orderedIds);
+  };
+
   return (
     <div className="page-shell space-y-6">
       <KanbanPageHeader
@@ -441,16 +458,26 @@ export function Sprints() {
               <div className="divide-y divide-slate-100">
                 {sprintTasks.length > 0 ? (
                   sprintTasks.map((task) => (
-                    <div key={task.id} className="grid grid-cols-[2fr_1.4fr_1.1fr_1fr_0.9fr_0.9fr_1fr_1fr_1fr_0.9fr] gap-3 px-5 py-4 text-sm">
+                    <div
+                      key={task.id}
+                      draggable={canManage}
+                      onDragStart={(event) => event.dataTransfer.setData('text/plain', task.id)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => handleSprintTaskDrop(event.dataTransfer.getData('text/plain'), task.id)}
+                      className="grid grid-cols-[2fr_1.4fr_1.1fr_1fr_0.9fr_0.9fr_1fr_1fr_1fr_0.9fr] gap-3 px-5 py-4 text-sm"
+                    >
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-slate-900">{task.title}</p>
+                        <p className="truncate font-medium text-slate-900">#{(task.sprintOrder ?? 0) + 1} {task.title}</p>
                         {task.parentLabel ? <p className="truncate text-xs text-slate-500">Pai: {task.parentLabel}</p> : null}
                       </div>
                       <div className="min-w-0 text-slate-600">
                         <p className="truncate">{task.projectName || 'Operacional'}</p>
                         <p className="truncate text-xs text-slate-500">{task.phaseName || 'Sem fase'}</p>
                       </div>
-                      <div className="truncate text-slate-600">{task.assignee || 'Sem responsável'}</div>
+                      <div className="truncate text-slate-600">
+                        <p>{task.technicalOwnerName || task.assignee || 'Sem técnico'}</p>
+                        <p className="text-xs text-slate-500">{task.analystOwnerName || task.requestedBy || 'Sem analista'}</p>
+                      </div>
                       <div className="text-slate-600">{hourFormatter.format(task.ownHours)}h</div>
                       <div className="text-slate-600">{currencyFormatter.format(task.ownCost)}</div>
                       <div className="text-slate-600">{task.sprintStatusResolved}</div>
@@ -528,7 +555,10 @@ function SprintTaskPool(props: {
                   </div>
                   <p className="mt-2 truncate text-sm font-semibold text-slate-950">{task.title}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {task.phaseName || 'Sem fase'} • {task.assignee || 'Sem responsável'} • {hourFormatter.format(task.ownHours)}h • {currencyFormatter.format(task.ownCost)}
+                    {task.phaseName || 'Sem fase'} • Técnico {task.technicalOwnerName || task.assignee || 'Sem responsável'} • Analista {task.analystOwnerName || task.requestedBy || 'Sem analista'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Prioridade #{(task.sprintOrder ?? 0) + 1} • {hourFormatter.format(task.ownHours)}h • {currencyFormatter.format(task.ownCost)}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                     {task.outsideSprint ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Fora da sprint</span> : null}
@@ -568,7 +598,10 @@ function SprintKanbanCard(props: { task: SprintTaskCandidate; onStatusChange: (t
       </div>
       <p className="mt-2 text-sm font-semibold text-slate-950">{props.task.title}</p>
       <p className="mt-1 text-xs text-slate-500">
-        {props.task.projectName || 'Operacional'} • {props.task.assignee || 'Sem responsável'}
+        {props.task.projectName || 'Operacional'} • Técnico {props.task.technicalOwnerName || props.task.assignee || 'Sem responsável'}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">
+        Analista {props.task.analystOwnerName || props.task.requestedBy || 'Sem analista'} • Prioridade #{(props.task.sprintOrder ?? 0) + 1}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {SPRINT_COLUMNS.map((column) => (
